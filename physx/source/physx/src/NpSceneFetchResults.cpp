@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -31,11 +31,12 @@
 #include "NpRigidDynamic.h"
 #include "NpArticulationReducedCoordinate.h"
 #include "NpArticulationTendon.h"
-#include "NpArticulationSensor.h"
 #include "NpAggregate.h"
+#include "ScScene.h"
 #if PX_SUPPORT_GPU_PHYSX
 	#include "NpSoftBody.h"
-	#include "NpParticleSystem.h"
+	#include "NpPBDParticleSystem.h"
+	#include "NpParticleBuffer.h"
 	#include "NpFEMCloth.h"
 	#include "NpHairSystem.h"
 	#include "cudamanager/PxCudaContextManager.h"
@@ -48,6 +49,7 @@
 #include "common/PxProfileZone.h"
 #include "BpBroadPhase.h"
 #include "BpAABBManagerBase.h"
+#include "omnipvd/NpOmniPvdSetData.h"
 
 using namespace physx;
 
@@ -88,45 +90,25 @@ bool NpScene::checkResults(bool block)
 
 void NpScene::fetchResultsParticleSystem()
 {
+	if (mCorruptedState) // silent if scene state is corrupted.
+		return;
+
+	if (!mScene.isUsingGpuDynamics()) // particles are only supported with GPU dynamics.
+		return;
+
 	mScene.getSimulationController()->syncParticleData();
-}
 
-void NpScene::fireOutOfBoundsCallbacks()
-{
-	PX_PROFILE_ZONE("Sim.fireOutOfBoundsCallbacks", getContextId());
-
-	// Fire broad-phase callbacks
+#if PX_SUPPORT_GPU_PHYSX
+	PxCUresult res = mCudaContextManager->getCudaContext()->getLastError();
+	if (res)
 	{
-		Sc::Scene& scene = mScene;
-		using namespace physx::Sc;
-
-		bool outputWarning = scene.fireOutOfBoundsCallbacks();
-
-		// Aggregates
+		if (mCudaContextManager->getCudaContext()->isInAbortMode())
 		{
-			Bp::AABBManagerBase* aabbManager = scene.getAABBManager();
-
-			PxU32 nbOut1;
-			void** outAgg = aabbManager->getOutOfBoundsAggregates(nbOut1);
-			if(nbOut1)
-			{
-				PxBroadPhaseCallback* cb = scene.getBroadPhaseCallback();
-
-				for(PxU32 i=0;i<nbOut1;i++)
-				{
-					PxAggregate* px = reinterpret_cast<PxAggregate*>(outAgg[i]);
-					if(cb)
-						cb->onObjectOutOfBounds(*px);
-					else
-						outputWarning = true;
-				}
-				aabbManager->clearOutOfBoundsAggregates();
-			}
+			PxGetFoundation().error(PxErrorCode::eABORT, PX_FL, "PhysX failed to allocate GPU memory - aborting simulation.");
+			mCorruptedState = true;
 		}
-
-		if(outputWarning)
-			outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "At least one object is out of the broadphase bounds. To manage those objects, define a PxBroadPhaseCallback for each used client.");
 	}
+#endif
 }
 
 // The order of the following operations is important!
@@ -139,14 +121,17 @@ void NpScene::fetchResultsPreContactCallbacks()
 	mScenePvdClient.updateContacts();
 #endif
 
-	mScene.prepareOutOfBoundsCallbacks();
 	mScene.endSimulation();
 
 	setAPIReadToAllowed();
 
 	{
 		PX_PROFILE_ZONE("Sim.fireCallbacksPreSync", getContextId());
-		fireOutOfBoundsCallbacks();		// fire out-of-bounds callbacks
+		{
+			PX_PROFILE_ZONE("Sim.fireOutOfBoundsCallbacks", getContextId());
+			if(mScene.fireOutOfBoundsCallbacks())
+				outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "At least one object is out of the broadphase bounds. To manage those objects, define a PxBroadPhaseCallback for each used client.");
+		}
 		mScene.fireBrokenConstraintCallbacks();
 		mScene.fireTriggerCallbacks();
 	}
@@ -154,6 +139,88 @@ void NpScene::fetchResultsPreContactCallbacks()
 
 void NpScene::fetchResultsPostContactCallbacks()
 {
+	// PT: I put this here for now, as initially we even considered making this a PxExtensions helper. To make it more
+	// efficient / multithread it we could eventually move this deeper in the Sc-level pipeline.
+	if(mScene.getFlags() & PxSceneFlag::eENABLE_BODY_ACCELERATIONS)
+	{
+		// PT: we store the acceleration data in a separate/dedicated array, so that memory usage doesn't increase for
+		// people who don't use the flag (i.e. most users). The drawback is that there's more cache misses here during the
+		// gather phase (reading velocities) compared to a design where we would compute the accelerations at the same time
+		// these velocities are stored back into the core objects. Pros & cons here. Unrolling that loop and adding some
+		// prefetch calls could help, if needed.
+
+		const float oneOverDt = mElapsedTime != 0.0f ? 1.0f/mElapsedTime : 0.0f;
+
+		if(1)
+		{
+			// PT: this version assumes we index mRigidDynamicsAccelerations as we do mRigidDynamics (with getRigidActorArrayIndex), i.e. we
+			// need to update that array when objects are removed (see removeFromRigidActorListT)
+
+			PxU32 size = mRigidDynamics.size();
+			if(mRigidDynamicsAccelerations.size()!=size)
+			{
+				mRigidDynamicsAccelerations.resize(size);
+			}
+
+			NpRigidDynamic** rigidDynamics = mRigidDynamics.begin();
+			Acceleration* accels = mRigidDynamicsAccelerations.begin();
+			while(size--)
+			{
+				const NpRigidDynamic* current = *rigidDynamics++;
+				const Sc::BodyCore&	core = current->getCore();
+
+				const PxVec3 linVel = core.getLinearVelocity();
+				const PxVec3 angVel = core.getAngularVelocity();
+
+				const PxVec3 deltaLinVel = linVel - accels->mPrevLinVel;
+				const PxVec3 deltaAngVel = angVel - accels->mPrevAngVel;
+
+				accels->mLinAccel = deltaLinVel * oneOverDt;
+				accels->mAngAccel = deltaAngVel * oneOverDt;
+
+				accels->mPrevLinVel = linVel;
+				accels->mPrevAngVel = angVel;
+
+				accels++;
+			}
+		}
+		else
+		{
+			// PT: this version uses getRigidActorSceneIndex(). The acceleration array can become larger than necessary,
+			// but the index is constant for the lifetime of the object. At this point we could just use a hashmap.
+
+			PxU32 size = mRigidDynamics.size();
+			NpRigidDynamic** rigidDynamics = mRigidDynamics.begin();
+			while(size--)
+			{
+				const NpRigidDynamic* current = *rigidDynamics++;
+
+				const PxU32 index = current->getRigidActorSceneIndex();
+				if(index+1>mRigidDynamicsAccelerations.size())
+				{
+					mRigidDynamicsAccelerations.resize(index+1);
+				}
+				Acceleration* accels = mRigidDynamicsAccelerations.begin();
+				accels += index;
+
+				const Sc::BodyCore&	core = current->getCore();
+
+				const PxVec3 linVel = core.getLinearVelocity();
+				const PxVec3 angVel = core.getAngularVelocity();
+
+				const PxVec3 deltaLinVel = linVel - accels->mPrevLinVel;
+				const PxVec3 deltaAngVel = angVel - accels->mPrevAngVel;
+
+				accels->mLinAccel = deltaLinVel * oneOverDt;
+				accels->mAngAccel = deltaAngVel * oneOverDt;
+
+				accels->mPrevLinVel = linVel;
+				accels->mPrevAngVel = angVel;
+			}
+
+		}
+	}
+
 	mScene.postCallbacksPreSync();
 
 	syncSQ();
@@ -199,31 +266,24 @@ void NpScene::fetchResultsPostContactCallbacks()
 
 bool NpScene::fetchResults(bool block, PxU32* errorState)
 {
+	if (mCorruptedState)
+		return true;
+
 	if(getSimulationStage() != Sc::SimulationStage::eADVANCE)
 		return outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::fetchResults: fetchResults() called illegally! It must be called after advance() or simulate()");
 
-	if(!checkResultsInternal(block))
+	if(!checkResultsInternal(block)) // this should wait on the mPhysicsDone event, which is set in the SceneCompletion task
 		return false;
 
+
 #if PX_SUPPORT_GPU_PHYSX
-	if (mCudaContextManager)
-	{
-		if (mScene.isUsingGpuDynamicsOrBp())
-		{
-			PxCUresult res = mCudaContextManager->getCudaContext()->getLastError();
-			if (res)
-			{
-				outputError<PxErrorCode::eINTERNAL_ERROR>(__LINE__, "PhysX Internal CUDA error. Simulation can not continue!");
-				if(errorState)
-					*errorState = res;
-			}
-		}
-	}
+	if (!checkSceneStateAndCudaErrors())
+		return true;
 #endif
 
-	{
-		PX_SIMD_GUARD;
+	PX_SIMD_GUARD;
 
+	{
 		// take write check *after* simulation has finished, otherwise 
 		// we will block simulation callbacks from using the API
 		// disallow re-entry to detect callbacks making write calls
@@ -255,6 +315,8 @@ bool NpScene::fetchResults(bool block, PxU32* errorState)
 		OmniPvdPxSampler* omniPvdSampler = NpPhysics::getInstance().mOmniPvdSampler;
 		if (omniPvdSampler && omniPvdSampler->isSampling())
 		{
+			OMNI_PVD_WRITE_SCOPE_BEGIN(pvdWriter, pvdRegData)
+
 			//send all xforms updated by the sim:
 			PxU32 nActiveActors;
 			PxActor ** activeActors = mScene.getActiveActors(nActiveActors);
@@ -265,74 +327,56 @@ bool NpScene::fetchResults(bool block, PxU32* errorState)
 				{
 					PxRigidActor* ra = static_cast<PxRigidActor*>(a);
 					PxTransform t = ra->getGlobalPose();
-					OMNI_PVD_SET(actor, translation, *a, t.p)
-					OMNI_PVD_SET(actor, rotation, *a, t.q)
+					OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxRigidActor, globalPose, *ra, t);
 
 					if (a->getType() == PxActorType::eRIGID_DYNAMIC)
 					{
 						PxRigidDynamic* rdyn = static_cast<PxRigidDynamic*>(a);
+						PxRigidBody& rb = *static_cast<PxRigidBody*>(a);
 						
 						const PxVec3 linVel = rdyn->getLinearVelocity();
-						OMNI_PVD_SET(actor, linearVelocity, *a, linVel)
+						OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxRigidBody, linearVelocity, rb, linVel)
 
 						const PxVec3 angVel = rdyn->getAngularVelocity();
-						OMNI_PVD_SET(actor, angularVelocity, *a, angVel)
+						OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxRigidBody, angularVelocity, rb, angVel)
 
 						const PxRigidBodyFlags rFlags = rdyn->getRigidBodyFlags();
-						OMNI_PVD_SET(actor, rigidBodyFlags, *a, rFlags)
+						OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxRigidBody, rigidBodyFlags, rb, rFlags)
+
+						OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxRigidDynamic, wakeCounter, *rdyn, rdyn->getWakeCounter());
 					}
 					
 				}
 				else if (a->getType() == PxActorType::eARTICULATION_LINK)
 				{
-					PxArticulationLink* pxArticulationParentLink = 0;
 					PxArticulationLink* pxArticulationLink = static_cast<PxArticulationLink*>(a);
 					PxArticulationJointReducedCoordinate* pxArticulationJoint = pxArticulationLink->getInboundJoint();
 					if (pxArticulationJoint)
 					{
-						pxArticulationParentLink = &(pxArticulationJoint->getParentArticulationLink());
-
-						PxArticulationJointReducedCoordinate & jcord = *pxArticulationJoint;
-						PxReal vals[6];
-						for (PxU32 ax = 0; ax < 6; ++ax)
+						PxArticulationJointReducedCoordinate& jcord = *pxArticulationJoint;
+						PxReal vals[PxArticulationAxis::eCOUNT];
+						for (PxU32 ax = 0; ax < PxArticulationAxis::eCOUNT; ++ax)
 							vals[ax] = jcord.getJointPosition(static_cast<PxArticulationAxis::Enum>(ax));
-						OMNI_PVD_SETB(articulationjoint, jointPosition, jcord, vals, sizeof(vals));
-						for (PxU32 ax = 0; ax < 6; ++ax)
+						OMNI_PVD_SET_ARRAY_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxArticulationJointReducedCoordinate, jointPosition, jcord, vals, PxArticulationAxis::eCOUNT);
+						for (PxU32 ax = 0; ax < PxArticulationAxis::eCOUNT; ++ax)
 							vals[ax] = jcord.getJointVelocity(static_cast<PxArticulationAxis::Enum>(ax));
-						OMNI_PVD_SETB(articulationjoint, jointVelocity, jcord, vals, sizeof(vals));
+						OMNI_PVD_SET_ARRAY_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxArticulationJointReducedCoordinate, jointVelocity, jcord, vals, PxArticulationAxis::eCOUNT);
 					}
 
-					physx::PxTransform TArtLinkLocal;
-					if (pxArticulationParentLink)
-					{
-						// TGlobal = TFatherGlobal * TLocal
-						// Inv(TFatherGlobal)* TGlobal = Inv(TFatherGlobal)*TFatherGlobal * TLocal
-						// Inv(TFatherGlobal)* TGlobal = TLocal
-						// TLocal = Inv(TFatherGlobal) * TGlobal
-						//physx::PxTransform TParentGlobal = pxArticulationParentLink->getGlobalPose();
-						physx::PxTransform TParentGlobalInv = pxArticulationParentLink->getGlobalPose().getInverse();
-						physx::PxTransform TArtLinkGlobal = pxArticulationLink->getGlobalPose();
-						TArtLinkLocal = TParentGlobalInv * TArtLinkGlobal;
-					}
-					else {
-						TArtLinkLocal = pxArticulationLink->getGlobalPose();
-						OMNI_PVD_SET(articulation, worldBounds, pxArticulationLink->getArticulation(), pxArticulationLink->getArticulation().getWorldBounds());
-					}
-					OMNI_PVD_SET(actor, translation, *a, TArtLinkLocal.p)
-					OMNI_PVD_SET(actor, rotation, *a, TArtLinkLocal.q)
-					
+					OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxRigidActor, globalPose, static_cast<PxRigidActor&>(*a), pxArticulationLink->getGlobalPose());
+
 					const PxVec3 linVel = pxArticulationLink->getLinearVelocity();
-					OMNI_PVD_SET(actor, linearVelocity, *a, linVel)
+					OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxRigidBody, linearVelocity, static_cast<PxRigidBody&>(*a), linVel)
 
 					const PxVec3 angVel = pxArticulationLink->getAngularVelocity();
-					OMNI_PVD_SET(actor, angularVelocity, *a, angVel)
+					OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxRigidBody, angularVelocity, static_cast<PxRigidBody&>(*a), angVel)
 
 					const PxRigidBodyFlags rFlags = pxArticulationLink->getRigidBodyFlags();
-					OMNI_PVD_SET(actor, rigidBodyFlags, *a, rFlags)
+					OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxRigidBody, rigidBodyFlags, static_cast<PxRigidBody&>(*a), rFlags)
 				}
 
 				const PxBounds3 worldBounds = a->getWorldBounds();
-				OMNI_PVD_SET(actor, worldBounds, *a, worldBounds)
+				OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxActor, worldBounds, *a, worldBounds)
 
 				// update active actors' joints
 				const PxRigidActor* ra = a->is<PxRigidActor>();
@@ -363,31 +407,127 @@ bool NpScene::fetchResults(bool block, PxU32* errorState)
 				}
 			}
 
+			PxArticulationReducedCoordinate*const* articulations = mArticulations.getEntries();
+			const PxU32 nbArticulations = mArticulations.size();
+			for( PxU32 i = 0 ; i < nbArticulations ;i++)
+			{				
+				PxArticulationReducedCoordinate* articulation = (articulations[i]);
+				OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxArticulationReducedCoordinate, wakeCounter, *articulation, articulation->getWakeCounter());
+				const PxBounds3 worldBounds = articulation->getWorldBounds();
+				OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxArticulationReducedCoordinate, worldBounds, *articulation, worldBounds);
+				bool isSleeping = articulation->isSleeping();
+				OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxArticulationReducedCoordinate, isSleeping, *articulation, isSleeping);
+			}
 			// send contacts info
 			omniPvdSampler->streamSceneContacts(*this);
 
+			// process particle data
+			if (mPBDParticleSystems.size() > 0)
+			{
+				fetchResultsParticleSystem();
+				const PxPBDParticleSystem* const* particleSystems = mPBDParticleSystems.getEntries();
+				const PxU32 particleSystemCount = mPBDParticleSystems.size();
+				for (PxU32 i = 0; i < particleSystemCount; i++)
+				{
+					const NpPBDParticleSystem* npPs = static_cast<const NpPBDParticleSystem*>(particleSystems[i]);
+					{
+						const PxBounds3 worldBounds = npPs->getWorldBounds();
+						OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxActor, worldBounds, *npPs, worldBounds);
+
+						const PxArray<PxsParticleBuffer*>& pxsBuffers = npPs->getCore().getShapeCore().getLLCore().mParticleBuffers;
+						const PxArray<NpParticleBuffer*>& npBuffers = npPs->mParticleBuffers;
+						for (PxU32 b = 0; b < pxsBuffers.size(); ++b)
+						{
+							const PxsParticleBuffer& pxsBuffer = *pxsBuffers[b];
+							if (pxsBuffer.getPositionInvMassesH())
+							{
+								PxParticleBuffer* pxBuffer = npBuffers[b];
+								PxReal* values = reinterpret_cast<PxReal*>(pxsBuffer.getPositionInvMassesH());
+								PxU32 nbValues = pxsBuffer.getNbActiveParticles() * 4;
+								OMNI_PVD_SET_ARRAY_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxParticleBuffer, positionInvMasses, *pxBuffer, values, nbValues);
+								OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxParticleBuffer, flatListStartIndex, *pxBuffer, pxsBuffer.getFlatListStartIndex());
+							}
+						}
+					}
+					{
+						const PxArray<PxsParticleBuffer*>& pxsBuffers = npPs->getCore().getShapeCore().getLLCore().mParticleDiffuseBuffers;
+						const PxArray<NpParticleAndDiffuseBuffer*>& npBuffers = npPs->mParticleDiffuseBuffers;
+						for (PxU32 b = 0; b < pxsBuffers.size(); ++b)
+						{
+							const PxsParticleBuffer& pxsBuffer = *pxsBuffers[b];
+							if (pxsBuffer.getPositionInvMassesH())
+							{
+								PxParticleBuffer* pxBuffer = npBuffers[b];
+								PxReal* values = reinterpret_cast<PxReal*>(pxsBuffer.getPositionInvMassesH());
+								PxU32 nbValues = pxsBuffer.getNbActiveParticles() * 4;
+								OMNI_PVD_SET_ARRAY_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxParticleBuffer, positionInvMasses, *pxBuffer, values, nbValues);
+							}
+							//TODO add diffuse particles
+						}
+					}
+					{
+						const PxArray<PxsParticleBuffer*>& pxsBuffers = npPs->getCore().getShapeCore().getLLCore().mParticleClothBuffers;
+						const PxArray<NpParticleClothBuffer*>& npBuffers = npPs->mParticleClothBuffers;
+						for (PxU32 b = 0; b < pxsBuffers.size(); ++b)
+						{
+							const PxsParticleBuffer& pxsBuffer = *pxsBuffers[b];
+							if (pxsBuffer.getPositionInvMassesH())
+							{
+								PxParticleBuffer* pxBuffer = npBuffers[b];
+								PxReal* values = reinterpret_cast<PxReal*>(pxsBuffer.getPositionInvMassesH());
+								PxU32 nbValues = pxsBuffer.getNbActiveParticles() * 4;
+								OMNI_PVD_SET_ARRAY_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxParticleBuffer, positionInvMasses, *pxBuffer, values, nbValues);
+							}
+						}
+					}
+					{
+						const PxArray<PxsParticleBuffer*>& pxsBuffers = npPs->getCore().getShapeCore().getLLCore().mParticleRigidBuffers;
+						const PxArray<NpParticleRigidBuffer*>& npBuffers = npPs->mParticleRigidBuffers;
+						for (PxU32 b = 0; b < pxsBuffers.size(); ++b)
+						{
+							const PxsParticleBuffer& pxsBuffer = *pxsBuffers[b];
+							if (pxsBuffer.getPositionInvMassesH())
+							{
+								PxParticleBuffer* pxBuffer = npBuffers[b];
+								PxReal* values = reinterpret_cast<PxReal*>(pxsBuffer.getPositionInvMassesH());
+								PxU32 nbValues = pxsBuffer.getNbActiveParticles() * 4;
+								OMNI_PVD_SET_ARRAY_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxParticleBuffer, positionInvMasses, *pxBuffer, values, nbValues);
+							}
+						}
+					}
+				}
+
+			}
+
 			//end frame
 			omniPvdSampler->sampleScene(this);
+
+			OMNI_PVD_WRITE_SCOPE_END
 		}
 #endif
 	}
 
 #if PX_SUPPORT_PVD
-	{
-		PX_SIMD_GUARD;
-		mScenePvdClient.frameEnd();
-	}
+	mScenePvdClient.frameEnd();
 #endif
 	return true;
 }
 
 bool NpScene::fetchResultsStart(const PxContactPairHeader*& contactPairs, PxU32& nbContactPairs, bool block)
 {
+	if (mCorruptedState)
+		return true;
+
 	if (getSimulationStage() != Sc::SimulationStage::eADVANCE)
 		return outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::fetchResultsStart: fetchResultsStart() called illegally! It must be called after advance() or simulate()");
 
 	if (!checkResultsInternal(block))
 		return false;
+
+#if PX_SUPPORT_GPU_PHYSX
+	if (!checkSceneStateAndCudaErrors())
+		return true;
+#endif
 
 	PX_SIMD_GUARD;
 	NP_WRITE_CHECK(this);
@@ -451,20 +591,10 @@ void NpScene::processCallbacks(PxBaseTask* continuation)
 
 void NpScene::fetchResultsFinish(PxU32* errorState)
 {
-#if PX_SUPPORT_GPU_PHYSX
-	if (mCudaContextManager)
-	{
-		if (mScene.isUsingGpuDynamicsOrBp())
-		{
-			if (mCudaContextManager->getCudaContext()->getLastError())
-			{
-				outputError<PxErrorCode::eINTERNAL_ERROR>(__LINE__, "PhysX Internal CUDA error. Simulation can not continue!");
-				if (errorState)
-					*errorState = mCudaContextManager->getCudaContext()->getLastError();
-			}
-		}
-	}
-#endif
+	if (mCorruptedState)
+		return;
+
+	// AD: we already checked the cuda error state in fetchResultsStart, there is no GPU work going on in-between.
 
 	{
 		PX_SIMD_GUARD;

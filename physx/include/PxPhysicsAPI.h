@@ -22,15 +22,12 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_PHYSICS_API_H
 #define PX_PHYSICS_API_H
-/** \addtogroup physics
-@{
-*/
 
 /**
 This is the main include header for the Physics SDK, for users who
@@ -190,14 +187,9 @@ Alternatively, one can instead directly #include a subset of the below files.
 #include "PxVisualizationParameter.h"
 #include "PxPruningStructure.h"
 #if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
-#include "PxCustomParticleSystem.h"
 #include "PxFEMCloth.h"
 #include "PxFEMClothMaterial.h"
-#include "PxFLIPParticleSystem.h"
-#include "PxFLIPMaterial.h"
 #include "PxHairSystem.h"
-#include "PxMPMMaterial.h"
-#include "PxMPMParticleSystem.h"
 #endif
 
 //Character Controller
@@ -249,5 +241,4 @@ Alternatively, one can instead directly #include a subset of the below files.
 #include "pvd/PxPvdSceneClient.h"
 #include "pvd/PxPvd.h"
 #include "pvd/PxPvdTransport.h"
-/** @} */
 #endif

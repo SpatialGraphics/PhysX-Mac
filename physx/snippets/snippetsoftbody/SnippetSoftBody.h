@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -30,15 +30,20 @@
 #define PHYSX_SNIPPET_SOFTBODY_H
 
 #include "PxPhysicsAPI.h"
+#include "cudamanager/PxCudaContextManager.h"
+#include "cudamanager/PxCudaContext.h"
+#include "extensions/PxCudaHelpersExt.h"
 #include <vector>
 
 class SoftBody
 {
 public:
-	SoftBody(physx::PxSoftBody* softBody, physx::PxBuffer* positionInvMass) :
+	SoftBody(physx::PxSoftBody* softBody, physx::PxCudaContextManager* cudaContextManager) :
 		mSoftBody(softBody),
-		mPositionInvMass(positionInvMass)
-	{ }
+		mCudaContextManager(cudaContextManager)
+	{
+		mPositionsInvMass = PX_EXT_PINNED_MEMORY_ALLOC(physx::PxVec4, *cudaContextManager, softBody->getCollisionMesh()->getNbVertices());
+	}
 
 	~SoftBody()
 	{
@@ -48,27 +53,30 @@ public:
 	{
 		if (mSoftBody)
 			mSoftBody->release();
-		if (mPositionInvMass)
-			mPositionInvMass->release();
+		
+		PX_EXT_PINNED_MEMORY_FREE(*mCudaContextManager, mPositionsInvMass);
 	}
 
+	void copyDeformedVerticesFromGPUAsync(CUstream stream)
+	{	
+		physx::PxTetrahedronMesh* tetMesh = mSoftBody->getCollisionMesh();
+
+		physx::PxScopedCudaLock _lock(*mCudaContextManager);
+		mCudaContextManager->getCudaContext()->memcpyDtoHAsync(mPositionsInvMass, reinterpret_cast<CUdeviceptr>(mSoftBody->getPositionInvMassBufferD()), tetMesh->getNbVertices() * sizeof(physx::PxVec4), stream);
+	}
 
 	void copyDeformedVerticesFromGPU()
 	{	
-		mSoftBody->readData(physx::PxSoftBodyData::ePOSITION_INVMASS, *mPositionInvMass);
+		physx::PxTetrahedronMesh* tetMesh = mSoftBody->getCollisionMesh();
 
-		physx::PxTetrahedronMesh* mTetMesh = mSoftBody->getCollisionMesh();
-		physx::PxVec4* positionsInvMass = static_cast<physx::PxVec4*>(mPositionInvMass->map());
-		
-		mPositionsInvMass.resize(mTetMesh->getNbVertices());
-		memcpy(mPositionsInvMass.begin(), positionsInvMass, mTetMesh->getNbVertices() * sizeof(physx::PxVec4));
-		
-		mPositionInvMass->unmap();	
+		physx::PxScopedCudaLock _lock(*mCudaContextManager);
+		mCudaContextManager->getCudaContext()->memcpyDtoH(mPositionsInvMass, reinterpret_cast<CUdeviceptr>(mSoftBody->getPositionInvMassBufferD()), tetMesh->getNbVertices() * sizeof(physx::PxVec4));
 	}
 
-	physx::PxArray<physx::PxVec4> mPositionsInvMass;
+
+	physx::PxVec4* mPositionsInvMass;
 	physx::PxSoftBody* mSoftBody;
-	physx::PxBuffer* mPositionInvMass;
+	physx::PxCudaContextManager* mCudaContextManager;
 };
 
 #endif

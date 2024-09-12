@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -163,15 +163,14 @@ static PxHeightFieldGeometryLL extendForLL(const PxHeightFieldGeometry& hlGeom)
 	return llGeom;
 }
 
-ShapeCore::ShapeCore(const PxGeometry& geometry, PxShapeFlags shapeFlags, const PxU16* materialIndices, PxU16 materialCount, bool isExclusive,
-	PxShapeCoreFlag::Enum softOrClothFlags) :
-	mSimAndIsExclusive		(NULL)
+ShapeCore::ShapeCore(const PxGeometry& geometry, PxShapeFlags shapeFlags, const PxU16* materialIndices, PxU16 materialCount, bool isExclusive, PxShapeCoreFlag::Enum coreFlags) :
+	mExclusiveSim(NULL)
 {
 	mCore.mShapeCoreFlags |= PxShapeCoreFlag::eOWNS_MATERIAL_IDX_MEMORY;
 	if(isExclusive)
 		mCore.mShapeCoreFlags |= PxShapeCoreFlag::eIS_EXCLUSIVE;
 
-	mCore.mShapeCoreFlags |= softOrClothFlags;
+	mCore.mShapeCoreFlags |= coreFlags;
 
 	PX_ASSERT(materialCount > 0);
 
@@ -184,8 +183,6 @@ ShapeCore::ShapeCore(const PxGeometry& geometry, PxShapeFlags shapeFlags, const 
 	mCore.mMinTorsionalPatchRadius	= 0.0f;
 	mCore.mShapeFlags				= shapeFlags;
 
-	mSimAndIsExclusive	= reinterpret_cast<ShapeSim*>(size_t(isExclusive ? 1 : 0));
-
 	setMaterialIndices(materialIndices, materialCount);
 }
 
@@ -193,7 +190,7 @@ ShapeCore::ShapeCore(const PxGeometry& geometry, PxShapeFlags shapeFlags, const 
 ShapeCore::ShapeCore(const PxEMPTY) : 
 	mSimulationFilterData	(PxEmpty),
 	mCore					(PxEmpty),
-	mSimAndIsExclusive		(NULL)
+	mExclusiveSim			(NULL)
 { 
 	mCore.mShapeCoreFlags.clear(PxShapeCoreFlag::eOWNS_MATERIAL_IDX_MEMORY);
 }
@@ -308,12 +305,9 @@ void ShapeCore::setContactOffset(const PxReal offset)
 {
 	mCore.mContactOffset = offset;
 
-	ShapeSim* sim = getSim();
-
-	if (sim)
-	{
-		sim->getScene().updateContactDistance(sim->getElementID(), offset);
-	}
+	ShapeSim* exclusiveSim = getExclusiveSim();
+	if(exclusiveSim)
+		exclusiveSim->getScene().updateContactDistance(exclusiveSim->getElementID(), offset);
 }
 
 // PX_SERIALIZATION

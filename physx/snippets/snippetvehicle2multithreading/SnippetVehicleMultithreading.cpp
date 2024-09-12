@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -85,7 +85,6 @@
 #include <ctype.h>
 
 #include "PxPhysicsAPI.h"
-#include "vehicle2/PxVehicleAPI.h"
 
 #include "../snippetvehicle2common/directdrivetrain/DirectDrivetrain.h"
 #include "../snippetvehicle2common/serialization/BaseSerialization.h"
@@ -389,8 +388,8 @@ void cleanupPhysX()
 	if (gPvd)
 	{
 		PxPvdTransport* transport = gPvd->getTransport();
-		gPvd->release();
-		transport->release();
+		PX_RELEASE(gPvd);
+		PX_RELEASE(transport);
 	}
 	PX_RELEASE(gFoundation);
 }
@@ -521,6 +520,7 @@ void cleanupPhysics()
 	cleanupVehicles();
 	cleanupGroundPlane();
 	cleanupPhysX();
+	printf("SnippetVehicle2Multithreading done.\n");
 }
 
 void concurrentVehicleUpdates(const PxReal timestep)

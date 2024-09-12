@@ -22,11 +22,13 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 
 #ifndef PX_PHYSICS_FEMCLOTH_SIM
 #define PX_PHYSICS_FEMCLOTH_SIM
 
+#include "foundation/PxPreprocessor.h"
+#if PX_SUPPORT_GPU_PHYSX
 #include "foundation/PxUserAllocated.h"
 #include "DyFEMCloth.h"
 #include "ScFEMClothCore.h" 
@@ -40,9 +42,9 @@ namespace physx
 		class Scene;
 		class FEMClothSim : public ActorSim
 		{
+			PX_NOCOPY(FEMClothSim)
 		public:
 			FEMClothSim(FEMClothCore& core, Scene& scene);
-
 			~FEMClothSim();
 
 			PX_INLINE	Dy::FEMCloth*		getLowLevelFEMCloth() const { return mLLFEMCloth; }
@@ -56,34 +58,27 @@ namespace physx
 			bool							isSleeping() const;
 			PX_FORCE_INLINE	bool			isActive() const { return !isSleeping(); }
 
-			void							setActive(const bool b, const PxU32 infoFlag = 0);
+			void							setActive(bool active, bool asPartOfCreation=false);
 
 			void							onSetWakeCounter();
 
 			void							attachShapeCore(ShapeCore* core);
 
-			virtual			void			registerCountedInteraction() { mNumCountedInteractions++; }
-			virtual			void			unregisterCountedInteraction() { mNumCountedInteractions--; }
-			virtual			PxU32			getNumCountedInteractions()	const { return mNumCountedInteractions; }
-
-			virtual			void			activate();
-			virtual			void			deactivate();
-
 			FEMClothShapeSim& getShapeSim() { return mShapeSim; }
 
 		private:
-			//FEMClothSim&		operator=(const FEMClothSim&);
-
 			Dy::FEMCloth*									mLLFEMCloth;
 
 			FEMClothShapeSim								mShapeSim;
 
-			PxU32											mNumCountedInteractions;
 			PxU32											mIslandNodeIndex;
 
+							void			activate();
+							void			deactivate();
 		};
 
 	} // namespace Sc
 }
+#endif
 
 #endif

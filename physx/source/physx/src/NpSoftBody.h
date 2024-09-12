@@ -22,13 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef NP_SOFTBODY_H
 #define NP_SOFTBODY_H
 
+#include "foundation/PxPreprocessor.h"
+#if PX_SUPPORT_GPU_PHYSX
 #include "PxSoftBody.h"
 #include "ScSoftBodyCore.h"
 #include "NpActorTemplate.h"
@@ -38,37 +40,43 @@ namespace physx
 {
 	class NpScene;
 	class NpShape;
+	class PxsMemoryManager;
+	class PxVirtualAllocatorCallback;
 
 	class NpSoftBody : public NpActorTemplate<PxSoftBody>
 	{
 	public:
-									NpSoftBody(PxCudaContextManager& cudaContextManager);
-									NpSoftBody(PxBaseFlags baseFlags, PxCudaContextManager& cudaContextManager);
+										NpSoftBody(PxCudaContextManager& cudaContextManager);
+										NpSoftBody(PxBaseFlags baseFlags, PxCudaContextManager& cudaContextManager);
 		
-		virtual						~NpSoftBody() {}
+		virtual							~NpSoftBody() { releaseAllocator(); }
 
-		void exportData(PxSerializationContext& /*context*/) const{}
+		void                            exportData(PxSerializationContext& /*context*/) const{}
 	
 		//external API
-		virtual						PxActorType::Enum	getType() const { return PxActorType::eSOFTBODY; }
+		virtual PxActorType::Enum       getType() const { return PxActorType::eSOFTBODY; }
 
-		virtual	PxBounds3			getWorldBounds(float inflation = 1.01f) const;
-		virtual	PxU32				getGpuSoftBodyIndex();
+		virtual PxBounds3               getWorldBounds(float inflation = 1.01f) const;
+		virtual PxU32                   getGpuSoftBodyIndex();
 		
-		virtual	void				setSoftBodyFlag(PxSoftBodyFlag::Enum flag, bool val);
-		virtual	void				setSoftBodyFlags(PxSoftBodyFlags flags);
-		virtual	PxSoftBodyFlags		getSoftBodyFlag() const;
+		virtual void                    setSoftBodyFlag(PxSoftBodyFlag::Enum flag, bool val);
+		virtual void                    setSoftBodyFlags(PxSoftBodyFlags flags);
+		virtual PxSoftBodyFlags         getSoftBodyFlag() const;
 
-		virtual	void				setParameter(const PxFEMParameters paramters);
-		virtual PxFEMParameters		getParameter() const;
+		virtual void                    setParameter(PxFEMParameters paramters);
+		virtual PxFEMParameters         getParameter() const;
 
-		virtual		void			readData(PxSoftBodyData::Enum flags, PxBuffer& buffer, bool flush);
-		virtual		void			readData(PxSoftBodyData::Enum flags, bool flush);
+		virtual PxVec4*                 getPositionInvMassBufferD();
+		virtual PxVec4*                 getRestPositionBufferD();
 
-		virtual		void			writeData(PxSoftBodyData::Enum flags, PxBuffer& buffer, bool flush);
-		virtual		void			writeData(PxSoftBodyData::Enum flags, bool flush);
+		virtual PxVec4*                 getSimPositionInvMassBufferD();
+		virtual PxVec4*                 getSimVelocityBufferD();
 
-		virtual		PxCudaContextManager*	getCudaContextManager() const;
+		virtual void                    markDirty(PxSoftBodyDataFlags flags);
+
+		virtual void                    setKinematicTargetBufferD(const PxVec4* positions, PxSoftBodyFlags flags);
+
+		virtual PxCudaContextManager*   getCudaContextManager() const;
 
 		virtual	void					setWakeCounter(PxReal wakeCounterValue);
 		virtual	PxReal					getWakeCounter() const;
@@ -81,8 +89,11 @@ namespace physx
 
 		virtual PxShape*				getShape();
 		virtual PxTetrahedronMesh*		getCollisionMesh();
-		virtual PxTetrahedronMesh*		getSimulationMesh();
-		virtual PxSoftBodyAuxData*		getSoftBodyAuxData();
+		virtual const PxTetrahedronMesh*	getCollisionMesh() const;
+		virtual PxTetrahedronMesh*		getSimulationMesh() { return mSimulationMesh; }
+		virtual const PxTetrahedronMesh*	getSimulationMesh() const { return mSimulationMesh; }
+		virtual PxSoftBodyAuxData*		getSoftBodyAuxData() { return mSoftBodyAuxData; }
+		virtual const PxSoftBodyAuxData*	getSoftBodyAuxData() const { return mSoftBodyAuxData; }
 
 		virtual	bool					attachShape(PxShape& shape);
 		virtual bool					attachSimulationMesh(PxTetrahedronMesh& simulationMesh, PxSoftBodyAuxData& softBodyAuxData);
@@ -120,39 +131,35 @@ namespace physx
 		virtual		void				removeSoftBodyFilters(PxSoftBody* softbody0, PxU32* tetIndices0, PxU32* tetIndices1, PxU32 tetIndicesSize);
 
 		virtual		PxU32				addSoftBodyAttachment(PxSoftBody* softbody0, PxU32 tetIdx0, const PxVec4& tetBarycentric0, PxU32 tetIdx1, const PxVec4& tetBarycentric1,
-										PxConeLimitedConstraint* constraint);
+										PxConeLimitedConstraint* constraint, PxReal constraintOffset);
 		virtual		void				removeSoftBodyAttachment(PxSoftBody* softbody0, PxU32 handle);
 
 		virtual		void				addClothFilter(PxFEMCloth* cloth, PxU32 triIdx, PxU32 tetIdx);
 		virtual		void				removeClothFilter(PxFEMCloth* cloth, PxU32 triIdx, PxU32 tetIdx);
 
+		virtual		void				addVertClothFilter(PxFEMCloth* cloth, PxU32 vertIdx, PxU32 tetIdx);
+		virtual		void				removeVertClothFilter(PxFEMCloth* cloth, PxU32 vertIdx, PxU32 tetIdx);
+
 		virtual		PxU32				addClothAttachment(PxFEMCloth* cloth, PxU32 triIdx, const PxVec4& triBarycentric, PxU32 tetIdx, const PxVec4& tetBarycentric, 
-										PxConeLimitedConstraint* constraint);
+										PxConeLimitedConstraint* constraint, PxReal constraintOffset);
+
 		virtual		void				removeClothAttachment(PxFEMCloth* cloth, PxU32 handle);
-
-		// Debug name
-		void							setName(const char*);
-		const char*						getName() const;
-
-		virtual		PxBuffer* getSimPositionInvMassCPU() { return mCore.getCore().mSimPositionInvMassCPU; }
-		virtual		PxBuffer* getSimVelocityInvMassCPU() { return mCore.getCore().mSimVelocityInvMassCPU; }
-		virtual		PxBuffer* getKinematicTargetCPU() { return mCore.getCore().mKinematicTargetCPU; }
-
-		virtual		PxBuffer* getPositionInvMassCPU() { return mCore.getCore().mPositionInvMassCPU; }
-		virtual		PxBuffer* getRestPositionInvMassCPU() { return mCore.getCore().mRestPositionInvMassCPU; }
 
 		void		updateMaterials();
 
 	private:
 
-		PxBuffer*					getBufferFromFlag(PxSoftBodyData::Enum flags);
-		PxBuffer*					getBufferHostFromFlag(PxSoftBodyData::Enum flags);
+		void 							createAllocator();
+		void 							releaseAllocator();
 
 		NpShape*					mShape; //soft body should just have one shape. The geometry type should be tetrahedron mesh
 		Gu::TetrahedronMesh*		mSimulationMesh;
 		Gu::SoftBodyAuxData*		mSoftBodyAuxData;
 		Sc::SoftBodyCore			mCore;
 		PxCudaContextManager*		mCudaContextManager;
+		PxsMemoryManager*			mMemoryManager;
+		PxVirtualAllocatorCallback*	mDeviceMemoryAllocator;
 	};
 }
+#endif
 #endif

@@ -22,7 +22,7 @@
 ## (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ## OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ##
-## Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+## Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 
 #
 # Build PhysXExtensions common
@@ -81,6 +81,10 @@ SET(PHYSX_EXTENSIONS_SOURCE
 IF ((PUBLIC_RELEASE OR PX_GENERATE_GPU_PROJECTS) AND (CMAKE_SIZEOF_VOID_P EQUAL 8) AND (TARGET_BUILD_PLATFORM STREQUAL "windows" OR TARGET_BUILD_PLATFORM STREQUAL "linux"))
 	LIST(APPEND PHYSX_EXTENSIONS_SOURCE "${LL_SOURCE_DIR}/ExtParticleExt.cpp")
 	LIST(APPEND PHYSX_EXTENSIONS_SOURCE "${LL_SOURCE_DIR}/ExtParticleClothCooker.cpp")
+
+	IF(NOT PX_GENERATE_SOURCE_DISTRO AND NOT PUBLIC_RELEASE)
+		LIST(APPEND PHYSX_EXTENSIONS_SOURCE "${LL_SOURCE_DIR}/ExtFEMClothExt.cpp")
+	ENDIF()
 ENDIF()
 
 SOURCE_GROUP(src FILES ${PHYSX_EXTENSIONS_SOURCE})
@@ -155,6 +159,9 @@ SET(PHYSX_EXTENSIONS_METADATA_SOURCE
 SOURCE_GROUP(src\\metadata FILES ${PHYSX_EXTENSIONS_METADATA_SOURCE})
 
 SET(PHYSX_EXTENSIONS_OMNIPVD_SOURCE
+    ${LL_SOURCE_DIR}/omnipvd/ExtOmniPvdRegistrationData.cpp
+    ${LL_SOURCE_DIR}/omnipvd/ExtOmniPvdRegistrationData.h
+    ${LL_SOURCE_DIR}/omnipvd/ExtOmniPvdSetData.h
 	${LL_SOURCE_DIR}/omnipvd/OmniPvdPxExtensionsTypes.h
 	${LL_SOURCE_DIR}/omnipvd/OmniPvdPxExtensionsSampler.h
 	${LL_SOURCE_DIR}/omnipvd/OmniPvdPxExtensionsSampler.cpp
@@ -166,6 +173,7 @@ SET(PHYSX_EXTENSIONS_HEADERS
 	${PHYSX_ROOT_DIR}/include/extensions/PxBroadPhaseExt.h
 	${PHYSX_ROOT_DIR}/include/extensions/PxCollectionExt.h
 	${PHYSX_ROOT_DIR}/include/extensions/PxConvexMeshExt.h
+	${PHYSX_ROOT_DIR}/include/extensions/PxCudaHelpersExt.h
 	${PHYSX_ROOT_DIR}/include/extensions/PxDefaultAllocator.h
 	${PHYSX_ROOT_DIR}/include/extensions/PxDefaultCpuDispatcher.h
 	${PHYSX_ROOT_DIR}/include/extensions/PxDefaultErrorCallback.h
@@ -198,10 +206,19 @@ SET(PHYSX_EXTENSIONS_HEADERS
 	${PHYSX_ROOT_DIR}/include/extensions/PxSamplingExt.h
 )
 
+
+
 #TODO, create a propper define for whether GPU features are enabled or not!
 IF ((PUBLIC_RELEASE OR PX_GENERATE_GPU_PROJECTS) AND (CMAKE_SIZEOF_VOID_P EQUAL 8) AND (TARGET_BUILD_PLATFORM STREQUAL "windows" OR TARGET_BUILD_PLATFORM STREQUAL "linux"))
 	LIST(APPEND PHYSX_EXTENSIONS_HEADERS "${PHYSX_ROOT_DIR}/include/extensions/PxParticleClothCooker.h")
 	LIST(APPEND PHYSX_EXTENSIONS_HEADERS "${PHYSX_ROOT_DIR}/include/extensions/PxParticleExt.h")
+
+	IF(NOT PX_GENERATE_SOURCE_DISTRO AND NOT PUBLIC_RELEASE)
+	LIST(APPEND PHYSX_EXTENSIONS_HEADERS
+		${PHYSX_ROOT_DIR}/include/extensions/PxFEMClothExt.h
+	)
+ENDIF()
+
 ENDIF()
 
 SOURCE_GROUP(include FILES ${PHYSX_EXTENSIONS_HEADERS})
@@ -266,6 +283,8 @@ SET(PHYSX_EXTENSIONS_SERIALIZATION_XML_SOURCE
 	${LL_SOURCE_DIR}/serialization/Xml/SnXmlVisitorReader.h
 	${LL_SOURCE_DIR}/serialization/Xml/SnXmlVisitorWriter.h
 	${LL_SOURCE_DIR}/serialization/Xml/SnXmlWriter.h
+	${LL_SOURCE_DIR}/serialization/Xml/PsFastXml.h
+	${LL_SOURCE_DIR}/serialization/Xml/PsFastXml.cpp
 )
 SOURCE_GROUP(serialization\\xml FILES ${PHYSX_EXTENSIONS_SERIALIZATION_XML_SOURCE})
 
@@ -345,8 +364,6 @@ TARGET_INCLUDE_DIRECTORIES(PhysXExtensions
 	PRIVATE ${PHYSX_SOURCE_DIR}/pvd/include
 
 	PRIVATE ${PHYSX_SOURCE_DIR}/scenequery/include
-
-	PRIVATE ${PHYSX_SOURCE_DIR}/fastxml/include
 )
 
 TARGET_LINK_LIBRARIES(PhysXExtensions
@@ -367,7 +384,7 @@ SET_TARGET_PROPERTIES(PhysXExtensions PROPERTIES
 )
 
 
-IF(NV_USE_GAMEWORKS_OUTPUT_DIRS AND PHYSXEXTENSIONS_LIBTYPE STREQUAL "STATIC")
+IF(PHYSXEXTENSIONS_LIBTYPE STREQUAL "STATIC")
 	SET_TARGET_PROPERTIES(PhysXExtensions PROPERTIES 
 		ARCHIVE_OUTPUT_NAME_DEBUG "PhysXExtensions_static"
 		ARCHIVE_OUTPUT_NAME_CHECKED "PhysXExtensions_static"

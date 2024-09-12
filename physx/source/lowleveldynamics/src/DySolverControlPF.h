@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -30,40 +30,24 @@
 #define DY_SOLVER_CONTROLPF_H
 
 #include "DySolverCore.h"
-#include "DySolverConstraintDesc.h"
 
 namespace physx
 {
-
 namespace Dy
 {
+	// PT: TODO: these "solver core" classes are mostly stateless, at this point they could just be function pointers like the solve methods.
+	class SolverCoreGeneralPF : public SolverCore
+	{
+	public:
+		SolverCoreGeneralPF(){}
 
-class SolverCoreGeneralPF : public SolverCore
-{
-public:
-	static SolverCoreGeneralPF* create();
+		// SolverCore
+		virtual void solveVParallelAndWriteBack(SolverIslandParams& params, Cm::SpatialVectorF* deltaV, Dy::ErrorAccumulatorEx* errorAccumulator) const	PX_OVERRIDE	PX_FINAL;
 
-	// Implements SolverCore
-	virtual void destroyV();
-
-	virtual PxI32 solveVParallelAndWriteBack
-		(SolverIslandParams& params, Cm::SpatialVectorF* Z, Cm::SpatialVectorF* deltaV) const;
-
-	virtual void solveV_Blocks
-		(SolverIslandParams& params) const;
-
-	virtual void writeBackV
-		(const PxSolverConstraintDesc* PX_RESTRICT constraintList, const PxU32 constraintListSize, PxConstraintBatchHeader* contactConstraintBatches, const PxU32 numBatches,
-		 ThresholdStreamElement* PX_RESTRICT thresholdStream, const PxU32 thresholdStreamLength, PxU32& outThresholdPairs,
-		 PxSolverBodyData* atomListData, WriteBackBlockMethod writeBackTable[]) const;
-
-private:
-
-	//~Implements SolverCore
-};
-
+		virtual void solveV_Blocks(SolverIslandParams& params) const	PX_OVERRIDE	PX_FINAL;
+		//~SolverCore
+	};
 }
-
 }
 
 #endif

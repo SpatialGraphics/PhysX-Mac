@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -34,17 +34,18 @@
 
 namespace physx
 {
-	PX_ALIGN_PREFIX(16) struct PxsFEMSoftBodyMaterialAuxData
-	{
-		// derived for co-rotational (computed internally)
-		float	rows[6][6];				//144			
 
-		// derived quantities (computed internally)
-		float	lambda;					//148
-		float	mu;						//152
-		float	alpha;					//156
-		float	volumeLambda;			//160
-	}PX_ALIGN_SUFFIX(16);
+	PX_FORCE_INLINE PX_CUDA_CALLABLE PxU16 toUniformU16(PxReal f)
+	{
+		f = PxClamp(f, 0.0f, 1.0f);
+		return PxU16(f * 65535.0f);
+	}
+
+	PX_FORCE_INLINE PX_CUDA_CALLABLE PxReal toUniformReal(PxU16 v)
+	{
+		return PxReal(v) * (1.0f / 65535.0f);
+	}
+
 
 	PX_ALIGN_PREFIX(16) struct PxsFEMSoftBodyMaterialData
 	{
@@ -52,7 +53,8 @@ namespace physx
 		PxReal	poissons;				//8
 		PxReal	dynamicFriction;		//12
 		PxReal	damping;				//16
-		PxReal	dampingScale;			//20
+		PxU16	dampingScale;			//20, known to be in the range of 0...1. Mapped to integer range 0...65535
+		PxU16	materialModel;          //22
 		PxReal	deformThreshold;		//24
 		PxReal	deformLowLimitRatio;	//28
 		PxReal	deformHighLimitRatio;	//32
@@ -62,6 +64,8 @@ namespace physx
 			poissons			(0.45f),
 			dynamicFriction		(0.0f),
 			damping				(0.0f),
+			//dampingScale        (0),
+			materialModel       (PxFEMSoftBodyMaterialModel::eCO_ROTATIONAL),
 			deformThreshold		(PX_MAX_F32),
 			deformLowLimitRatio	(1.0f),
 			deformHighLimitRatio(1.0f)

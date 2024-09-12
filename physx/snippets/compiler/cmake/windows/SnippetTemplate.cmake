@@ -22,7 +22,7 @@
 ## (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ## OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ##
-## Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+## Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 
 #
 # Build Snippet win template
@@ -50,7 +50,7 @@ SET(SNIPPET_PLATFORM_SOURCES
 )
 
 SET(SNIPPET_PLATFORM_INCLUDES
-	#adding PhysXGpu include for configs that don't add link target PhysXGpu 
+	#adding PhysXGpu include for configs that don't add link target PhysXGpu
 	${PHYSX_ROOT_DIR}/include/cudamanager
 	${FREEGLUT_PATH}/include
 )
@@ -73,12 +73,6 @@ ELSE()
 	)
 ENDIF()
 
-IF(NOT PUBLIC_RELEASE AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-	LIST(APPEND SNIPPET_PLATFORM_LINKED_LIBS
-		PhysXGPUExtensions
-	)
-ENDIF()
-
 IF(${SNIPPET_NAME} STREQUAL "ArticulationLoader")
 	LIST(APPEND SNIPPET_PLATFORM_SOURCES
 		${TINYXML2_PATH}/tinyxml2.h
@@ -97,8 +91,4 @@ ENDIF()
 
 IF(PX_GENERATE_GPU_STATIC_LIBRARIES)
 	LIST(APPEND SNIPPET_PLATFORM_LINKED_LIBS PhysXGpu)
-
-	IF(NOT PUBLIC_RELEASE)
-		LIST(APPEND SNIPPET_PLATFORM_LINKED_LIBS ${CUDA_CUDA_LIBRARY})
-	ENDIF()
 ENDIF()

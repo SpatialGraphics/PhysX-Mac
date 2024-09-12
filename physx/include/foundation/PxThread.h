@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
@@ -201,7 +201,7 @@ class PxThreadT : protected Alloc, public PxUserAllocated, public PxRunnable
 	*/
 	PxThreadT(const Alloc& alloc = Alloc()) : Alloc(alloc)
 	{
-		mImpl = reinterpret_cast<PxThreadImpl*>(Alloc::allocate(PxThreadImpl::getSize(), __FILE__, __LINE__));
+		mImpl = reinterpret_cast<PxThreadImpl*>(Alloc::allocate(PxThreadImpl::getSize(), PX_FL));
 		PX_PLACEMENT_NEW(mImpl, PxThreadImpl)();
 	}
 
@@ -210,7 +210,7 @@ class PxThreadT : protected Alloc, public PxUserAllocated, public PxRunnable
 	*/
 	PxThreadT(PxThreadImpl::ExecuteFn fn, void* arg, const char* name, const Alloc& alloc = Alloc()) : Alloc(alloc)
 	{
-		mImpl = reinterpret_cast<PxThreadImpl*>(Alloc::allocate(PxThreadImpl::getSize(), __FILE__, __LINE__));
+		mImpl = reinterpret_cast<PxThreadImpl*>(Alloc::allocate(PxThreadImpl::getSize(), PX_FL));
 		PX_PLACEMENT_NEW(mImpl, PxThreadImpl)(fn, arg, name);
 	}
 

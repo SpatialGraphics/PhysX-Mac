@@ -22,7 +22,7 @@
 ## (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ## OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ##
-## Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+## Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 
 #
 # Build PhysXCommon common
@@ -30,6 +30,7 @@
 
 SET(PHYSX_SOURCE_DIR ${PHYSX_ROOT_DIR}/source)
 SET(COMMON_SRC_DIR ${PHYSX_SOURCE_DIR}/common/src)
+SET(COMMON_INCLUDE_DIR ${PHYSX_SOURCE_DIR}/common/include)
 SET(GU_SOURCE_DIR ${PHYSX_SOURCE_DIR}/geomutils)
 
 SET(PXCOMMON_PLATFORM_LINK_FLAGS_DEBUG " ")
@@ -70,6 +71,14 @@ SET(PHYSX_COMMON_SOURCE
 	${COMMON_SRC_DIR}/CmVisualization.cpp
 )
 SOURCE_GROUP(common\\src FILES ${PHYSX_COMMON_SOURCE})
+
+SET(PHYSXCOMMON_COMMON_INTERNAL_HEADERS
+	${COMMON_INCLUDE_DIR}/omnipvd/CmOmniPvdAutoGenClearDefines.h
+	${COMMON_INCLUDE_DIR}/omnipvd/CmOmniPvdAutoGenCreateRegistrationStruct.h
+	${COMMON_INCLUDE_DIR}/omnipvd/CmOmniPvdAutoGenRegisterData.h
+	${COMMON_INCLUDE_DIR}/omnipvd/CmOmniPvdAutoGenSetData.h
+)
+SOURCE_GROUP(common\\include\\omnipvd FILES ${PHYSXCOMMON_COMMON_INTERNAL_HEADERS})
 
 SET(PHYSXCOMMON_COMMON_HEADERS
 	${PHYSX_ROOT_DIR}/include/common/PxBase.h
@@ -292,15 +301,12 @@ SET(PHYSXCOMMON_GU_DISTANCE_SOURCE
 	${GU_SOURCE_DIR}/src/distance/GuDistanceSegmentBox.cpp
 	${GU_SOURCE_DIR}/src/distance/GuDistanceSegmentSegment.cpp
 	${GU_SOURCE_DIR}/src/distance/GuDistanceSegmentTriangle.cpp
+	${GU_SOURCE_DIR}/src/distance/GuDistanceTriangleTriangle.cpp
 	${GU_SOURCE_DIR}/src/distance/GuDistancePointTetrahedron.cpp
 	${GU_SOURCE_DIR}/src/distance/GuDistancePointBox.h
 	${GU_SOURCE_DIR}/src/distance/GuDistancePointSegment.h
-	${GU_SOURCE_DIR}/src/distance/GuDistancePointTriangle.h
-	${GU_SOURCE_DIR}/src/distance/GuDistancePointTriangleSIMD.h
-	${GU_SOURCE_DIR}/src/distance/GuDistanceSegmentSegmentSIMD.h
 	${GU_SOURCE_DIR}/src/distance/GuDistanceSegmentTriangle.h
-	${GU_SOURCE_DIR}/src/distance/GuDistanceSegmentTriangleSIMD.h
-	${GU_SOURCE_DIR}/src/distance/GuDistancePointTetrahedron.h
+	${GU_SOURCE_DIR}/src/distance/GuDistanceTriangleTriangle.h
 )
 SOURCE_GROUP(geomutils\\src\\distance FILES ${PHYSXCOMMON_GU_DISTANCE_SOURCE})
 
@@ -356,7 +362,6 @@ SET(PHYSXCOMMON_GU_INTERSECTION_SOURCE
 	${GU_SOURCE_DIR}/src/intersection/GuIntersectionEdgeEdge.h
 	${GU_SOURCE_DIR}/src/intersection/GuIntersectionRay.h
 	${GU_SOURCE_DIR}/src/intersection/GuIntersectionRayBox.h
-	${GU_SOURCE_DIR}/src/intersection/GuIntersectionRayBoxSIMD.h
 	${GU_SOURCE_DIR}/src/intersection/GuIntersectionRayCapsule.h
 	${GU_SOURCE_DIR}/src/intersection/GuIntersectionRayPlane.h
 	${GU_SOURCE_DIR}/src/intersection/GuIntersectionRaySphere.h
@@ -396,6 +401,7 @@ SET(PHYSXCOMMON_GU_MESH_SOURCE
 	${GU_SOURCE_DIR}/src/mesh/GuBV32.cpp
 	${GU_SOURCE_DIR}/src/mesh/GuBV32Build.cpp
 	${GU_SOURCE_DIR}/src/mesh/GuTetrahedronMesh.cpp
+	${GU_SOURCE_DIR}/src/mesh/GuTetrahedronMeshUtils.cpp
 	${GU_SOURCE_DIR}/src/mesh/GuBV32.h
 	${GU_SOURCE_DIR}/src/mesh/GuBV32Build.h
 	${GU_SOURCE_DIR}/src/mesh/GuBV4.h
@@ -434,6 +440,7 @@ SET(PHYSXCOMMON_GU_MESH_SOURCE
 	${GU_SOURCE_DIR}/src/mesh/GuTriangleMeshRTree.h
 	${GU_SOURCE_DIR}/src/mesh/GuTetrahedron.h
 	${GU_SOURCE_DIR}/src/mesh/GuTetrahedronMesh.h
+	${GU_SOURCE_DIR}/src/mesh/GuTetrahedronMeshUtils.h
 )
 SOURCE_GROUP(geomutils\\src\\mesh FILES ${PHYSXCOMMON_GU_MESH_SOURCE})
 
@@ -576,6 +583,7 @@ SOURCE_GROUP(geomutils\\src\\cooking FILES ${PHYSXCOMMON_GU_COOKING_SOURCE})
 
 ADD_LIBRARY(PhysXCommon ${PHYSXCOMMON_LIBTYPE} 
 	${PHYSX_COMMON_SOURCE}
+    ${PHYSXCOMMON_COMMON_INTERNAL_HEADERS}
 	
 	${PHYSXCOMMON_COMMON_HEADERS}
 	${PHYSXCOMMON_GEOMETRY_HEADERS}
@@ -640,7 +648,7 @@ SET_TARGET_PROPERTIES(PhysXCommon PROPERTIES
 )
 
 
-IF(NV_USE_GAMEWORKS_OUTPUT_DIRS AND PHYSXCOMMON_LIBTYPE STREQUAL "STATIC")
+IF(PHYSXCOMMON_LIBTYPE STREQUAL "STATIC")
 	SET_TARGET_PROPERTIES(PhysXCommon PROPERTIES 
 		ARCHIVE_OUTPUT_NAME_DEBUG "PhysXCommon_static"
 		ARCHIVE_OUTPUT_NAME_CHECKED "PhysXCommon_static"
@@ -674,6 +682,7 @@ TARGET_LINK_LIBRARIES(PhysXCommon
 
 IF(PX_GENERATE_SOURCE_DISTRO)
 	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_COMMON_SOURCE})
+    LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSXCOMMON_COMMON_INTERNAL_HEADERS})
 	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSXCOMMON_COMMON_HEADERS})
 	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSXCOMMON_GEOMETRY_HEADERS})
 	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSXCOMMON_GEOMUTILS_HEADERS})

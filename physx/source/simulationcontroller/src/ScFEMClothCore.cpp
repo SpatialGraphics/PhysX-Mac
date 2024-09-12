@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -38,6 +38,7 @@
 #include "GuTetrahedronMesh.h"
 #include "GuBV4.h"
 #include "geometry/PxTetrahedronMesh.h"
+#include "cudamanager/PxCudaContextManager.h"
 
 using namespace physx;
 
@@ -51,24 +52,13 @@ Sc::FEMClothCore::FEMClothCore() :
 	mCore.mFlags = PxFEMClothFlags(0);
 #endif
 
-	mCore.mClothPositionInvMass = NULL;
-	mCore.mClothVelocity = NULL;
-	mCore.mClothRestPosition = NULL;
+	mCore.mPositionInvMass = NULL;
+	mCore.mVelocity = NULL;
+	mCore.mRestPosition = NULL;
 	mCore.wakeCounter = Physics::sWakeCounterOnCreation;
 }
 
-Sc::FEMClothCore::~FEMClothCore()
-{
-	if (mCore.mClothPositionInvMass)
-		mCore.mClothPositionInvMass->release();
-
-	if (mCore.mClothVelocity)
-		mCore.mClothVelocity->release();
-
-	if (mCore.mClothRestPosition)
-		mCore.mClothRestPosition->release();
-
-}
+Sc::FEMClothCore::~FEMClothCore() { }
 
 PxFEMParameters Sc::FEMClothCore::getParameter() const
 {
@@ -276,6 +266,14 @@ PxFilterData Sc::FEMClothCore::getSimulationFilterData() const
 {
 	return mFilterData;
 }
+
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+void Sc::FEMClothCore::setFlags(PxFEMClothFlags flags)
+{
+	mCore.mFlags = flags;
+	mCore.dirty = true;
+}
+#endif
 
 
 void Sc::FEMClothCore::onShapeChange(ShapeCore& shape, ShapeChangeNotifyFlags notifyFlags)

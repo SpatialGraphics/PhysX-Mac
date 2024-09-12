@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -38,10 +38,9 @@ public:
 	~OmniPvdReaderImpl();
 
 	void OMNI_PVD_CALL setLogFunction(OmniPvdLogFunction logFunction);
-	void OMNI_PVD_CALL setReadStream(OmniPvdReadStream* stream);
-	bool OMNI_PVD_CALL startReading(OmniPvdVersionType* majorVersion, OmniPvdVersionType* minorVersion, OmniPvdVersionType* patch);
-	OmniPvdCommandEnum::Enum OMNI_PVD_CALL getNextCommand();
-	OmniPvdCommandEnum::Enum OMNI_PVD_CALL getCommandType();
+	void OMNI_PVD_CALL setReadStream(OmniPvdReadStream& stream);
+	bool OMNI_PVD_CALL startReading(OmniPvdVersionType& majorVersion, OmniPvdVersionType& minorVersion, OmniPvdVersionType& patch);
+	OmniPvdCommand::Enum OMNI_PVD_CALL getNextCommand();
 
 	OmniPvdVersionType OMNI_PVD_CALL getMajorVersion();
 	OmniPvdVersionType OMNI_PVD_CALL getMinorVersion();
@@ -54,12 +53,12 @@ public:
 	OmniPvdClassHandle OMNI_PVD_CALL getBaseClassHandle();
 	OmniPvdAttributeHandle OMNI_PVD_CALL getAttributeHandle();
 
-	char* OMNI_PVD_CALL getClassName();
-	char* OMNI_PVD_CALL getAttributeName();
-	char* OMNI_PVD_CALL getObjectName();
+	const char* OMNI_PVD_CALL getClassName();
+	const char* OMNI_PVD_CALL getAttributeName();
+	const char* OMNI_PVD_CALL getObjectName();
 
-	uint8_t* OMNI_PVD_CALL getAttributeDataPointer();
-	OmniPvdAttributeDataType OMNI_PVD_CALL getAttributeDataType();
+	const uint8_t* OMNI_PVD_CALL getAttributeDataPointer();
+	OmniPvdDataType::Enum OMNI_PVD_CALL getAttributeDataType();
 	uint32_t OMNI_PVD_CALL getAttributeDataLength();
 	uint32_t OMNI_PVD_CALL getAttributeNumberElements();
 	OmniPvdClassHandle OMNI_PVD_CALL getAttributeClassHandle();
@@ -75,6 +74,7 @@ public:
 
 	// Internal helper
 	void readLongDataFromStream(uint32_t streamByteLen);
+	void resetCommandParams();
 
 	OmniPvdLog mLog;
 
@@ -83,8 +83,6 @@ public:
 	OmniPvdVersionType mMajorVersion;
 	OmniPvdVersionType mMinorVersion;
 	OmniPvdVersionType mPatch;
-	
-	OmniPvdCommandEnum::Enum mCmdType;
 	
 	OmniPvdVersionType mCmdMajorVersion;
 	OmniPvdVersionType mCmdMinorVersion;
@@ -109,10 +107,10 @@ public:
 	uint16_t mCmdObjectNameLen;
 
 	uint8_t* mCmdAttributeDataPtr;
-	OmniPvdAttributeDataType mCmdAttributeDataType;
+	OmniPvdDataType::Enum mCmdAttributeDataType;
 	uint32_t mCmdAttributeDataLen;
-	uint32_t mCmdAttributeNbrFields;
-	uint32_t mCmdEnumValue;
+	uint32_t mCmdAttributeNbElements;
+	OmniPvdEnumValueType mCmdEnumValue;
 	OmniPvdClassHandle mCmdEnumClassHandle;
 	OmniPvdClassHandle mCmdAttributeClassHandle;
 

@@ -22,7 +22,7 @@
 ## (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ## OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ##
-## Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+## Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 
 #
 # Build PhysX (PROJECT not SOLUTION) common
@@ -51,16 +51,15 @@ SET(PHYSX_HEADERS
 	${PHYSX_ROOT_DIR}/include/PxArticulationReducedCoordinate.h
 	${PHYSX_ROOT_DIR}/include/PxArticulationTendon.h
 	${PHYSX_ROOT_DIR}/include/PxArticulationTendonData.h
+	${PHYSX_ROOT_DIR}/include/PxArticulationMimicJoint.h
 	${PHYSX_ROOT_DIR}/include/PxAttachment.h
 	${PHYSX_ROOT_DIR}/include/PxBroadPhase.h
-	${PHYSX_ROOT_DIR}/include/PxBuffer.h
 	${PHYSX_ROOT_DIR}/include/PxClient.h
 	${PHYSX_ROOT_DIR}/include/PxConeLimitedConstraint.h
 	${PHYSX_ROOT_DIR}/include/PxConstraint.h
 	${PHYSX_ROOT_DIR}/include/PxConstraintDesc.h
 	${PHYSX_ROOT_DIR}/include/PxContact.h
 	${PHYSX_ROOT_DIR}/include/PxContactModifyCallback.h
-	${PHYSX_ROOT_DIR}/include/PxCustomParticleSystemSolverCallback.h
 	${PHYSX_ROOT_DIR}/include/PxDeletionListener.h
 	${PHYSX_ROOT_DIR}/include/PxFEMParameter.h
 	${PHYSX_ROOT_DIR}/include/PxFEMClothFlags.h
@@ -99,15 +98,20 @@ SET(PHYSX_HEADERS
 	${PHYSX_ROOT_DIR}/include/PxSoftBodyFlag.h
 	${PHYSX_ROOT_DIR}/include/PxSparseGridParams.h
 	${PHYSX_ROOT_DIR}/include/PxVisualizationParameter.h
+    ${PHYSX_ROOT_DIR}/include/PxIsosurfaceExtraction.h
+    ${PHYSX_ROOT_DIR}/include/PxSmoothing.h
+    ${PHYSX_ROOT_DIR}/include/PxAnisotropy.h
+    ${PHYSX_ROOT_DIR}/include/PxParticleNeighborhoodProvider.h
+    ${PHYSX_ROOT_DIR}/include/PxArrayConverter.h
+    ${PHYSX_ROOT_DIR}/include/PxLineStripSkinning.h
+	${PHYSX_ROOT_DIR}/include/PxSDFBuilder.h
+	${PHYSX_ROOT_DIR}/include/PxResidual.h
+	${PHYSX_ROOT_DIR}/include/PxDirectGPUAPI.h
 )
 IF(NOT PX_GENERATE_SOURCE_DISTRO AND NOT PUBLIC_RELEASE)
 	LIST(APPEND PHYSX_HEADERS
-		${PHYSX_ROOT_DIR}/include/PxCustomParticleSystem.h
 		${PHYSX_ROOT_DIR}/include/PxFEMCloth.h
-		${PHYSX_ROOT_DIR}/include/PxFLIPParticleSystem.h
-		${PHYSX_ROOT_DIR}/include/PxGridParticleSystem.h
 		${PHYSX_ROOT_DIR}/include/PxHairSystem.h
-		${PHYSX_ROOT_DIR}/include/PxMPMParticleSystem.h
 	)
 ENDIF()
 SOURCE_GROUP(include FILES ${PHYSX_HEADERS})
@@ -119,8 +123,6 @@ SET(PHYSX_MATERIAL_HEADERS
 	${PHYSX_ROOT_DIR}/include/PxFEMClothMaterial.h
 	${PHYSX_ROOT_DIR}/include/PxParticleMaterial.h
 	${PHYSX_ROOT_DIR}/include/PxPBDMaterial.h
-	${PHYSX_ROOT_DIR}/include/PxFLIPMaterial.h
-	${PHYSX_ROOT_DIR}/include/PxMPMMaterial.h
 	${PHYSX_ROOT_DIR}/include/PxMaterial.h
 )
 SOURCE_GROUP(include\\materials FILES ${PHYSX_MATERIAL_HEADERS})
@@ -188,6 +190,11 @@ SOURCE_GROUP(metadata\\src FILES ${PHYSX_METADATA_SOURCE})
 SET(PHYSX_OMNIPVD_SOURCE
 	${PX_SOURCE_DIR}/omnipvd/NpOmniPvd.h
 	${PX_SOURCE_DIR}/omnipvd/NpOmniPvd.cpp
+    ${PX_SOURCE_DIR}/omnipvd/NpOmniPvdRegistrationData.h
+	${PX_SOURCE_DIR}/omnipvd/NpOmniPvdRegistrationData.cpp
+    ${PX_SOURCE_DIR}/omnipvd/NpOmniPvdSetData.h
+	${PX_SOURCE_DIR}/omnipvd/NpOmniPvdMetaData.h
+	${PX_SOURCE_DIR}/omnipvd/NpOmniPvdMetaData.cpp
 	${PX_SOURCE_DIR}/omnipvd/OmniPvdPxSampler.cpp
 	${PX_SOURCE_DIR}/omnipvd/OmniPvdPxSampler.h
 	${PX_SOURCE_DIR}/omnipvd/OmniPvdChunkAlloc.cpp
@@ -206,7 +213,7 @@ SET(PHYSX_PVD_SOURCE
 	${PX_SOURCE_DIR}/PvdMetaDataBindingData.h
 	${PX_SOURCE_DIR}/PvdMetaDataPvdBinding.h
 	${PX_SOURCE_DIR}/PvdPhysicsClient.h
-	${PX_SOURCE_DIR}/PvdTypeNames.h  
+	${PX_SOURCE_DIR}/PvdTypeNames.h
 )
 SOURCE_GROUP(src\\pvd FILES ${PHYSX_PVD_SOURCE})
 
@@ -220,11 +227,7 @@ SET(PHYSX_MATERIALS_SOURCE
 	${PX_SOURCE_DIR}/NpFEMSoftBodyMaterial.cpp
 	${PX_SOURCE_DIR}/NpFEMClothMaterial.cpp
 	${PX_SOURCE_DIR}/NpPBDMaterial.cpp
-	${PX_SOURCE_DIR}/NpFLIPMaterial.cpp
-	${PX_SOURCE_DIR}/NpMPMMaterial.cpp
 	${PX_SOURCE_DIR}/NpPBDMaterial.h
-	${PX_SOURCE_DIR}/NpFLIPMaterial.h
-	${PX_SOURCE_DIR}/NpMPMMaterial.h
 	${PX_SOURCE_DIR}/NpFEMSoftBodyMaterial.h
 	${PX_SOURCE_DIR}/NpFEMClothMaterial.h
 	${PX_SOURCE_DIR}/NpMaterial.h
@@ -236,12 +239,12 @@ SET(PHYSX_ARTICULATIONS_SOURCE
 	${PX_SOURCE_DIR}/NpArticulationJointReducedCoordinate.cpp
 	${PX_SOURCE_DIR}/NpArticulationLink.cpp
 	${PX_SOURCE_DIR}/NpArticulationTendon.cpp
-	${PX_SOURCE_DIR}/NpArticulationSensor.cpp
+	${PX_SOURCE_DIR}/NpArticulationMimicJoint.cpp
 	${PX_SOURCE_DIR}/NpArticulationReducedCoordinate.h
 	${PX_SOURCE_DIR}/NpArticulationJointReducedCoordinate.h
 	${PX_SOURCE_DIR}/NpArticulationLink.h
 	${PX_SOURCE_DIR}/NpArticulationTendon.h
-	${PX_SOURCE_DIR}/NpArticulationSensor.h
+	${PX_SOURCE_DIR}/NpArticulationMimicJoint.h
 )
 SOURCE_GROUP(src\\articulations FILES ${PHYSX_ARTICULATIONS_SOURCE})
 
@@ -250,8 +253,9 @@ SET(PHYSX_CORE_SOURCE
 	${PX_SOURCE_DIR}/NpAggregate.cpp
 	${PX_SOURCE_DIR}/NpSoftBody.cpp
 	${PX_SOURCE_DIR}/NpFEMCloth.cpp
-	${PX_SOURCE_DIR}/NpParticleSystem.cpp
-    ${PX_SOURCE_DIR}/NpHairSystem.cpp
+	${PX_SOURCE_DIR}/NpPBDParticleSystem.cpp
+	${PX_SOURCE_DIR}/NpParticleBuffer.cpp
+	${PX_SOURCE_DIR}/NpHairSystem.cpp
 	${PX_SOURCE_DIR}/NpConstraint.cpp
 	${PX_SOURCE_DIR}/NpFactory.cpp
 	${PX_SOURCE_DIR}/NpMetaData.cpp
@@ -274,9 +278,10 @@ SET(PHYSX_CORE_SOURCE
 	${PX_SOURCE_DIR}/NpActorTemplate.h
 	${PX_SOURCE_DIR}/NpAggregate.h
 	${PX_SOURCE_DIR}/NpSoftBody.h
-	${PX_SOURCE_DIR}/NpFEMCloth.h	
-	${PX_SOURCE_DIR}/NpParticleSystem.h
-    ${PX_SOURCE_DIR}/NpHairSystem.h
+	${PX_SOURCE_DIR}/NpFEMCloth.h
+	${PX_SOURCE_DIR}/NpPBDParticleSystem.h
+	${PX_SOURCE_DIR}/NpParticleBuffer.h
+	${PX_SOURCE_DIR}/NpHairSystem.h
 	${PX_SOURCE_DIR}/NpConnector.h
 	${PX_SOURCE_DIR}/NpConstraint.h
 	${PX_SOURCE_DIR}/NpFactory.h
@@ -297,6 +302,8 @@ SET(PHYSX_CORE_SOURCE
 	${PX_SOURCE_DIR}/NpShapeManager.h
 	${PX_SOURCE_DIR}/NpDebugViz.h
 	${PX_SOURCE_DIR}/NpDebugViz.cpp
+	${PX_SOURCE_DIR}/NpDirectGPUAPI.h
+	${PX_SOURCE_DIR}/NpDirectGPUAPI.cpp
 )
 SOURCE_GROUP(src FILES ${PHYSX_CORE_SOURCE})
 
@@ -310,17 +317,17 @@ ADD_LIBRARY(PhysX ${PHYSX_LIBTYPE}
 	${PHYSX_PVD_SOURCE}
 	${PHYSX_SOLVER_HEADERS}
 	${PHYSX_COLLISION_HEADERS}
-	
+
 	${PHYSX_METADATA_HEADERS}
 	${PHYSX_METADATA_SOURCE}
-	
+
 	${PHYSX_CORE_SOURCE}
 	${PHYSX_BUFFERING_SOURCE}
 	${PHYSX_IMMEDIATEMODE_SOURCE}
 	${PHYSX_MATERIALS_SOURCE}
 	${PHYSX_ARTICULATIONS_SOURCE}
-	
-	${PHYSX_PLATFORM_SRC_FILES}	
+
+	${PHYSX_PLATFORM_SRC_FILES}
 )
 
 # Add the headers to the install
@@ -334,7 +341,7 @@ INSTALL(FILES ${PHYSX_SOLVER_HEADERS} DESTINATION include/solver)
 # install the custom config file
 INSTALL(FILES ${PHYSX_ROOT_DIR}/include/PxConfig.h DESTINATION include)
 
-TARGET_INCLUDE_DIRECTORIES(PhysX 
+TARGET_INCLUDE_DIRECTORIES(PhysX
 	PRIVATE ${PHYSX_PLATFORM_INCLUDES}
 
 	PRIVATE ${PHYSX_ROOT_DIR}/include
@@ -344,9 +351,9 @@ TARGET_INCLUDE_DIRECTORIES(PhysX
 
 	PRIVATE ${PHYSX_SOURCE_DIR}/physx/src
 	PRIVATE ${PHYSX_SOURCE_DIR}/physx/src/device
-
 	PRIVATE ${PHYSX_SOURCE_DIR}/physxgpu/include
-	
+
+
 	PRIVATE ${PHYSX_SOURCE_DIR}/geomutils/include
 	PRIVATE ${PHYSX_SOURCE_DIR}/geomutils/src
 	PRIVATE ${PHYSX_SOURCE_DIR}/geomutils/src/contact
@@ -360,32 +367,37 @@ TARGET_INCLUDE_DIRECTORIES(PhysX
 	PRIVATE ${PHYSX_SOURCE_DIR}/geomutils/src/hf
 	PRIVATE ${PHYSX_SOURCE_DIR}/geomutils/src/pcm
 	PRIVATE ${PHYSX_SOURCE_DIR}/geomutils/src/ccd
-	
+
 	PRIVATE ${PHYSX_SOURCE_DIR}/lowlevel/api/include
 	PRIVATE ${PHYSX_SOURCE_DIR}/lowlevel/software/include
 	PRIVATE ${PHYSX_SOURCE_DIR}/lowlevel/common/include/pipeline
 	PRIVATE ${PHYSX_SOURCE_DIR}/lowlevel/common/include/utils
 
 	PRIVATE ${PHYSX_SOURCE_DIR}/lowlevelaabb/include
-	
+
 	PRIVATE ${PHYSX_SOURCE_DIR}/lowleveldynamics/include
+	PRIVATE ${PHYSX_SOURCE_DIR}/lowleveldynamics/shared
 
 	PRIVATE ${PHYSX_SOURCE_DIR}/simulationcontroller/include
 	PRIVATE ${PHYSX_SOURCE_DIR}/simulationcontroller/src
-	
+
 	PRIVATE ${PHYSX_SOURCE_DIR}/scenequery/include
-	
+
 	PRIVATE ${PHYSX_SOURCE_DIR}/physxmetadata/core/include
 
     PRIVATE ${PHYSX_SOURCE_DIR}/immediatemode/include
 
     PRIVATE ${PHYSX_SOURCE_DIR}/pvd/include
-    
+
+	PRIVATE ${PHYSX_SOURCE_DIR}/gpucommon/include
+	PRIVATE ${PHYSX_SOURCE_DIR}/gpucommon/src/DX
+	PRIVATE ${PHYSX_SOURCE_DIR}/gpucommon/src/CUDA
+
   PRIVATE ${PHYSX_SOURCE_DIR}/omnipvd
   PRIVATE ${PHYSX_ROOT_DIR}/pvdruntime/include
 )
 
-TARGET_COMPILE_DEFINITIONS(PhysX 
+TARGET_COMPILE_DEFINITIONS(PhysX
 
 	# Common to all configurations
 	PRIVATE ${PHYSX_COMPILE_DEFS}
@@ -396,8 +408,8 @@ SET_TARGET_PROPERTIES(PhysX PROPERTIES
 
 )
 
-IF(NV_USE_GAMEWORKS_OUTPUT_DIRS AND PHYSX_LIBTYPE STREQUAL "STATIC")
-	SET_TARGET_PROPERTIES(PhysX PROPERTIES 
+IF(PHYSX_LIBTYPE STREQUAL "STATIC")
+	SET_TARGET_PROPERTIES(PhysX PROPERTIES
 		ARCHIVE_OUTPUT_NAME_DEBUG "PhysX_static"
 		ARCHIVE_OUTPUT_NAME_CHECKED "PhysX_static"
 		ARCHIVE_OUTPUT_NAME_PROFILE "PhysX_static"
@@ -406,7 +418,7 @@ IF(NV_USE_GAMEWORKS_OUTPUT_DIRS AND PHYSX_LIBTYPE STREQUAL "STATIC")
 ENDIF()
 
 IF(PHYSX_COMPILE_PDB_NAME_DEBUG)
-	SET_TARGET_PROPERTIES(PhysX PROPERTIES 
+	SET_TARGET_PROPERTIES(PhysX PROPERTIES
 		COMPILE_PDB_NAME_DEBUG "${PHYSX_COMPILE_PDB_NAME_DEBUG}"
 		COMPILE_PDB_NAME_CHECKED "${PHYSX_COMPILE_PDB_NAME_CHECKED}"
 		COMPILE_PDB_NAME_PROFILE "${PHYSX_COMPILE_PDB_NAME_PROFILE}"
@@ -414,13 +426,13 @@ IF(PHYSX_COMPILE_PDB_NAME_DEBUG)
 	)
 ENDIF()
 
-TARGET_LINK_LIBRARIES(PhysX 
+TARGET_LINK_LIBRARIES(PhysX
 	PRIVATE ${PHYSX_PRIVATE_PLATFORM_LINKED_LIBS}
 	PRIVATE PhysXPvdSDK PhysXCommon PhysXFoundation
 	PUBLIC ${PHYSX_PLATFORM_LINKED_LIBS}
 )
 
-SET_TARGET_PROPERTIES(PhysX PROPERTIES 
+SET_TARGET_PROPERTIES(PhysX PROPERTIES
 	LINK_FLAGS "${PHYSX_PLATFORM_LINK_FLAGS}"
 	LINK_FLAGS_DEBUG "${PHYSX_PLATFORM_LINK_FLAGS_DEBUG}"
 	LINK_FLAGS_CHECKED "${PHYSX_PLATFORM_LINK_FLAGS_CHECKED}"
@@ -437,12 +449,12 @@ IF(PX_GENERATE_SOURCE_DISTRO)
 	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_OMNIPVD_SOURCE})
 	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_PVD_SOURCE})
 	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_METADATA_HEADERS})
-	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_METADATA_SOURCE})	
+	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_METADATA_SOURCE})
 	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_CORE_SOURCE})
 	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_BUFFERING_SOURCE})
-	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_IMMEDIATEMODE_SOURCE})	
-	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_MATERIALS_SOURCE})		
-	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_ARTICULATIONS_SOURCE})		
+	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_IMMEDIATEMODE_SOURCE})
+	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_MATERIALS_SOURCE})
+	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_ARTICULATIONS_SOURCE})
 	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_PLATFORM_SRC_FILES})
 	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${PHYSX_SOLVER_HEADERS})
 ENDIF()

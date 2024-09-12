@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
@@ -37,7 +37,6 @@
 
 namespace physx
 {
-
 namespace
 {
 
@@ -146,8 +145,7 @@ uint32_t PxThreadImpl::getNbPhysicalCores()
 		}
 		else
 		{
-			PxGetFoundation().error(PxErrorCode::eINTERNAL_ERROR, __FILE__, __LINE__,
-			                                     "Error querying buffer size for number of physical processors");
+			PxGetFoundation().error(PxErrorCode::eINTERNAL_ERROR, PX_FL, "Error querying buffer size for number of physical processors");
 			return 0;
 		}
 
@@ -155,8 +153,7 @@ uint32_t PxThreadImpl::getNbPhysicalCores()
 		rc = (DWORD)glpi(buffer, &returnLength);
 		if(rc != TRUE)
 		{
-			PxGetFoundation().error(PxErrorCode::eINTERNAL_ERROR, __FILE__, __LINE__,
-			                                     "Error querying number of physical processors");
+			PxGetFoundation().error(PxErrorCode::eINTERNAL_ERROR, PX_FL, "Error querying number of physical processors");
 			return 0;
 		}
 
@@ -227,8 +224,7 @@ void PxThreadImpl::start(uint32_t stackSize, PxRunnable* runnable)
 	    CreateThread(NULL, stackSize, PxThreadStart, (LPVOID) this, CREATE_SUSPENDED, &getThread(this)->threadID);
 	if(!getThread(this)->thread)
 	{
-		PxGetFoundation().error(PxErrorCode::eINTERNAL_ERROR, __FILE__, __LINE__,
-			                                    "PsWindowsThread::start: Failed to create thread.");
+		PxGetFoundation().error(PxErrorCode::eINTERNAL_ERROR, PX_FL, "FdWindowsThread::start: Failed to create thread.");
 		getThread(this)->state = ThreadImpl::NotStarted;
 		return;
 	}
@@ -243,8 +239,7 @@ void PxThreadImpl::start(uint32_t stackSize, PxRunnable* runnable)
 	DWORD rc = ResumeThread(getThread(this)->thread);
 	if(rc == DWORD(-1))
 	{
-		PxGetFoundation().error(PxErrorCode::eINTERNAL_ERROR, __FILE__, __LINE__,
-			                                    "PsWindowsThread::start: Failed to resume thread.");
+		PxGetFoundation().error(PxErrorCode::eINTERNAL_ERROR, PX_FL, "FdWindowsThread::start: Failed to resume thread.");
 		getThread(this)->state = ThreadImpl::NotStarted;
 		return;
 	}	
@@ -366,8 +361,7 @@ void PxThreadImpl::setPriority(PxThreadPriority::Enum prio)
 	}
 	if(!rc)
 	{
-		PxGetFoundation().error(PxErrorCode::eINTERNAL_ERROR, __FILE__, __LINE__,
-			"PsWindowsThread::setPriority: Failed to set thread priority.");
+		PxGetFoundation().error(PxErrorCode::eINTERNAL_ERROR, PX_FL, "FdWindowsThread::setPriority: Failed to set thread priority.");
 	}
 }
 

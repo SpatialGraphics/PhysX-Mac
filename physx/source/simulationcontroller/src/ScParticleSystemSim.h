@@ -22,11 +22,13 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 
 #ifndef SC_PARTICLESYSTEM_SIM_H
 #define SC_PARTICLESYSTEM_SIM_H
 
+#include "foundation/PxPreprocessor.h"
+#if PX_SUPPORT_GPU_PHYSX
 #include "foundation/PxUserAllocated.h"
 #include "ScActorSim.h"
 #include "ScParticleSystemCore.h" 
@@ -40,9 +42,9 @@ namespace physx
 
 		class ParticleSystemSim : public ActorSim
 		{
+			PX_NOCOPY(ParticleSystemSim)
 		public:
 			ParticleSystemSim(ParticleSystemCore& core, Scene& scene);
-
 			~ParticleSystemSim();
 
 			PX_INLINE	Dy::ParticleSystem*		getLowLevelParticleSystem() const { return mLLParticleSystem; }
@@ -58,31 +60,23 @@ namespace physx
 			bool							isActive() const { return true; }
 			void							sleepCheck(PxReal dt);
 
-			void							setActive(const bool b, const PxU32 infoFlag = 0);
+			void							setActive(bool active, bool asPartOfCreation=false);
 
 			const			ParticleSystemShapeSim& getShapeSim() const	 { return mShapeSim; }
 							ParticleSystemShapeSim& getShapeSim()		 { return mShapeSim; }
 
-			virtual			void			registerCountedInteraction() { mNumCountedInteractions++; }
-			virtual			void			unregisterCountedInteraction() { mNumCountedInteractions--; }
-			virtual			PxU32			getNumCountedInteractions()	const { return mNumCountedInteractions; }
-
-			virtual			void			activate();
-			virtual			void			deactivate();
-
 		private:
-			ParticleSystemSim & operator=(const ParticleSystemSim&);
-
 			Dy::ParticleSystem*									mLLParticleSystem;
 
 			ParticleSystemShapeSim								mShapeSim;
 
-			PxU32												mNumCountedInteractions;
-
+// PT: as far as I can tell these are never actually called
+//								void			activate();
+//								void			deactivate();
 		};
 
 	} // namespace Sc
-
 }
+#endif
 
 #endif

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -34,8 +34,10 @@
 #include "GuBVH.h"
 #include "CmUtils.h"
 #include "NpArticulationReducedCoordinate.h"
+#include "omnipvd/NpOmniPvdSetData.h"
 
 using namespace physx;
+using namespace Gu;
 
 namespace
 {
@@ -61,9 +63,9 @@ namespace
 			npScene->getScenePvdClientInternal().updatePvdProperties( pAggregate );
 	}
 #else
-#define PvdAttachActorToAggregate(aggregate, scActor)		{}
-#define PvdDetachActorFromAggregate(aggregate, scActor)	{}
-#define PvdUpdateProperties(aggregate)						{}
+	#define PvdAttachActorToAggregate(aggregate, scActor)	{}
+	#define PvdDetachActorFromAggregate(aggregate, scActor)	{}
+	#define PvdUpdateProperties(aggregate)					{}
 #endif
 }
 
@@ -101,6 +103,30 @@ NpAggregate::~NpAggregate()
 		PX_FREE(mActors);
 }
 
+void NpAggregate::scAddActor(NpActor& actor)
+{
+	PX_ASSERT(!isAPIWriteForbidden());
+
+	actor.getActorCore().setAggregateID(mAggregateID);
+	PvdAttachActorToAggregate( this, &actor );
+	PvdUpdateProperties( this );
+}
+
+void NpAggregate::scRemoveActor(NpActor& actor, bool reinsert)
+{
+	PX_ASSERT(!isAPIWriteForbidden());
+
+	Sc::ActorCore& ac = actor.getActorCore();
+	ac.setAggregateID(PX_INVALID_U32);
+		
+	if(getNpScene() && reinsert)
+		ac.reinsertShapes();
+
+	//Update pvd status
+	PvdDetachActorFromAggregate( this, &actor );
+	PvdUpdateProperties( this );
+}
+
 void NpAggregate::removeAndReinsert(PxActor& actor, bool reinsert)
 {
 	NpActor& np = NpActor::getFromPxActor(actor);
@@ -121,11 +147,9 @@ void NpAggregate::release()
 
 	NpPhysics::getInstance().notifyDeletionListenersUserRelease(this, NULL);
 
-	/*
-	"An aggregate should be empty when it gets released. If it isn't, the behavior should be: remove the actors from
-	the aggregate, then remove the aggregate from the scene (if any) then delete it. I guess that implies the actors
-	get individually reinserted into the broad phase if the aggregate is in a scene."
-	*/
+	// "An aggregate should be empty when it gets released. If it isn't, the behavior should be: remove the actors from
+	// the aggregate, then remove the aggregate from the scene (if any) then delete it. I guess that implies the actors
+	// get individually reinserted into the broad phase if the aggregate is in a scene."
 	for(PxU32 i=0;i<mNbActors;i++)
 	{
 		if (mActors[i]->getType() == PxActorType::eARTICULATION_LINK)
@@ -169,6 +193,29 @@ void NpAggregate::addActorInternal(PxActor& actor, NpScene& s, const PxBVH* bvh)
 		}
 
 		s.addArticulationInternal(npArt);
+	}
+}
+
+void NpAggregate::addToScene(NpScene& scene)
+{
+	const PxU32 nb = mNbActors;
+
+	for(PxU32 i=0;i<nb;i++)
+	{
+		PX_ASSERT(mActors[i]);
+		PxActor& actor = *mActors[i];
+
+		//A.B. check if a bvh was connected to that actor, we will use it for the insert and remove it
+		NpActor& npActor = NpActor::getFromPxActor(actor);
+		BVH* bvh = NULL;			
+		if(npActor.getConnectors<BVH>(NpConnectorType::eBvh, &bvh, 1))
+			npActor.removeConnector(actor, NpConnectorType::eBvh, bvh, "PxBVH connector could not have been removed!");				
+
+		addActorInternal(actor, scene, bvh);
+
+		// if a bvh was used dec ref count, we increased the ref count when adding the actor connection
+		if(bvh)
+			bvh->decRefCount();
 	}
 }
 
@@ -225,7 +272,7 @@ bool NpAggregate::addActor(PxActor& actor, const PxBVH* bvh)
 
 	mNbShapes += numShapes;
 
-	OMNI_PVD_ADD(aggregate, actors, static_cast<PxAggregate&>(*this), actor);
+	OMNI_PVD_ADD(OMNI_PVD_CONTEXT_HANDLE, PxAggregate, actors, static_cast<PxAggregate&>(*this), actor);
 
 	// PT: when an object is added to a aggregate at runtime, i.e. when the aggregate has already been added to the scene,
 	// we need to immediately add the newcomer to the scene as well.
@@ -239,7 +286,7 @@ bool NpAggregate::addActor(PxActor& actor, const PxBVH* bvh)
 		if(bvh)
 		{
 			PxBVH* bvhMutable = const_cast<PxBVH*>(bvh);
-			static_cast<Gu::BVH*>(bvhMutable)->incRefCount();
+			static_cast<BVH*>(bvhMutable)->incRefCount();
 			NpActor::getFromPxActor(actor).addConnector(NpConnectorType::eBvh, bvhMutable, "PxBVH already added to the PxActor!");
 		}
 	}
@@ -281,15 +328,15 @@ bool NpAggregate::removeActor(PxActor& actor)
 	if(!npScene)
 	{
 		NpActor& np = NpActor::getFromPxActor(actor);
-		Gu::BVH* bvh = NULL;
-		if(np.getConnectors<Gu::BVH>(NpConnectorType::eBvh, &bvh, 1))
+		BVH* bvh = NULL;
+		if(np.getConnectors<BVH>(NpConnectorType::eBvh, &bvh, 1))
 		{
 			np.removeConnector(actor, NpConnectorType::eBvh, bvh, "PxBVH connector could not have been removed!");
 			bvh->decRefCount();
 		}
 	}
 
-	OMNI_PVD_REMOVE(aggregate, actors, static_cast<PxAggregate&>(*this), actor);
+	OMNI_PVD_REMOVE(OMNI_PVD_CONTEXT_HANDLE, PxAggregate, actors, static_cast<PxAggregate&>(*this), actor);
 
 	// PT: there are really 2 cases here:
 	// a) the user just wants to remove the actor from the aggregate, but the actor is still alive so if the aggregate has been added to a scene,
@@ -313,7 +360,8 @@ bool NpAggregate::addArticulation(PxArticulationReducedCoordinate& art)
 	if((mNbActors+art.getNbLinks()) > mMaxNbActors)
 		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: can't add articulation links, max number of actors reached");
 
-	if((mNbShapes + art.getNbShapes()) > mMaxNbShapes)
+	const PxU32 numShapes = art.getNbShapes();
+	if((mNbShapes + numShapes) > mMaxNbShapes)
 		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: can't add articulation, max number of shapes reached");
 
 	if(art.getAggregate())
@@ -336,6 +384,8 @@ bool NpAggregate::addArticulation(PxArticulationReducedCoordinate& art)
 
 		scAddActor(l);
 	}
+
+	mNbShapes += numShapes;
 
 	// PT: when an object is added to a aggregate at runtime, i.e. when the aggregate has already been added to the scene,
 	// we need to immediately add the newcomer to the scene as well.
@@ -485,30 +535,6 @@ void NpAggregate::requiresObjects(PxProcessPxBaseCallback& c)
 }
 // ~PX_SERIALIZATION
 
-void NpAggregate::scAddActor(NpActor& actor)
-{
-	PX_ASSERT(!isAPIWriteForbidden());
-
-	actor.getActorCore().setAggregateID(mAggregateID);
-	PvdAttachActorToAggregate( this, &actor );
-	PvdUpdateProperties( this );
-}
-
-void NpAggregate::scRemoveActor(NpActor& actor, bool reinsert)
-{
-	PX_ASSERT(!isAPIWriteForbidden());
-
-	Sc::ActorCore& ac = actor.getActorCore();
-	ac.setAggregateID(PX_INVALID_U32);
-		
-	if(getNpScene() && reinsert)
-		ac.reinsertShapes();
-
-	//Update pvd status
-	PvdDetachActorFromAggregate( this, &actor );
-	PvdUpdateProperties( this );
-}
-
 void NpAggregate::incShapeCount()
 {
 	if(mNbShapes == mMaxNbShapes)
@@ -516,6 +542,7 @@ void NpAggregate::incShapeCount()
 
 	mNbShapes++;
 }
+
 void NpAggregate::decShapeCount()
 {
 	PX_ASSERT(mNbShapes > 0);

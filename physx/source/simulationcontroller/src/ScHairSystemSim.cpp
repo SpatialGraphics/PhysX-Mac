@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 
 
 #include "foundation/PxPreprocessor.h"
@@ -40,8 +40,7 @@ using namespace physx::Dy;
 
 Sc::HairSystemSim::HairSystemSim(HairSystemCore& core, Scene& scene) :
 	ActorSim(scene, core),
-	mShapeSim(*this, &core.getShapeCore()),
-	mNumCountedInteractions(0)
+	mShapeSim(*this, &core.getShapeCore())
 {
 	mLLHairSystem = scene.createLLHairSystem(this);
 
@@ -89,18 +88,6 @@ bool Sc::HairSystemSim::isSleeping() const
 	return sim.getActiveNodeIndex(mNodeIndex) == PX_INVALID_NODE;
 }
 
-void Sc::HairSystemSim::setActive(const bool b, const PxU32 /*infoFlag*/)
-{
-	if (b)
-	{
-		getScene().getSimulationController()->activateHairSystem(mLLHairSystem);
-	}
-	else
-	{
-		getScene().getSimulationController()->deactivateHairSystem(mLLHairSystem);
-	}
-}
-
 void Sc::HairSystemSim::onSetWakeCounter()
 {
 	getScene().getSimulationController()->setHairSystemWakeCounter(mLLHairSystem);
@@ -113,7 +100,7 @@ void Sc::HairSystemSim::onSetWakeCounter()
 	}
 }
 
-void Sc::HairSystemSim::activate()
+/*void Sc::HairSystemSim::activate()
 {
 	activateInteractions(*this);
 }
@@ -121,6 +108,6 @@ void Sc::HairSystemSim::activate()
 void Sc::HairSystemSim::deactivate()
 {
 	deactivateInteractions(*this);
-}
+}*/
 
 #endif //PX_SUPPORT_GPU_PHYSX

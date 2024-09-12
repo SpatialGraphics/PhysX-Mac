@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -67,14 +67,14 @@ void onBeforeRenderParticles()
 
 		PxScene* scene;
 		PxGetPhysics().getScenes(&scene, 1);
-		PxCudaContextManager* cudaContexManager = scene->getCudaContextManager();
+		PxCudaContextManager* cudaContextManager = scene->getCudaContextManager();
 
-		cudaContexManager->acquireContext();
+		cudaContextManager->acquireContext();
 
-		PxCudaContext* cudaContext = cudaContexManager->getCudaContext();
+		PxCudaContext* cudaContext = cudaContextManager->getCudaContext();
 		cudaContext->memcpyDtoH(sPosBuffer.map(), CUdeviceptr(positions), sizeof(PxVec4) * numParticles);
 
-		cudaContexManager->releaseContext();
+		cudaContextManager->releaseContext();
 #if SHOW_SOLID_SDF_SLICE
 		particleSystem->copySparseGridData(sSparseGridSolidSDFBufferD, PxSparseGridDataFlag::eGRIDCELL_SOLID_GRADIENT_AND_SDF);
 #endif
@@ -95,13 +95,15 @@ void allocParticleBuffers()
 {
 	PxScene* scene;
 	PxGetPhysics().getScenes(&scene, 1);
-	PxCudaContextManager* cudaContexManager = scene->getCudaContextManager();
+	PxCudaContextManager* cudaContextManager = scene->getCudaContextManager();
+	if (cudaContextManager != NULL)
+	{
+		PxParticleClothBuffer* userBuffer = getUserClothBuffer();
+		PxU32 maxParticles = userBuffer->getMaxParticles();
 
-	PxParticleClothBuffer* userBuffer = getUserClothBuffer();
-	PxU32 maxParticles = userBuffer->getMaxParticles();
-
-	sPosBuffer.initialize(cudaContexManager);
-	sPosBuffer.allocate(maxParticles * sizeof(PxVec4));
+		sPosBuffer.initialize(cudaContextManager);
+		sPosBuffer.allocate(maxParticles * sizeof(PxVec4));
+	}
 }
 
 void clearupParticleBuffers()
@@ -143,9 +145,6 @@ void cleanup()
 
 void exitCallback(void)
 {
-#if PX_WINDOWS
-	cleanup();
-#endif
 }
 }
 
@@ -162,8 +161,6 @@ void renderLoop()
 
 	glutMainLoop();
 
-#if PX_LINUX_FAMILY
 	cleanup();
-#endif
 }
 #endif

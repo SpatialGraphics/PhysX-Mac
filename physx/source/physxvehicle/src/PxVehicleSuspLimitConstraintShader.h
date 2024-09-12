@@ -22,15 +22,12 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_VEHICLE_SUSP_LIMIT_CONSTRAINT_SHADER_H
 #define PX_VEHICLE_SUSP_LIMIT_CONSTRAINT_SHADER_H
-/** \addtogroup vehicle
-  @{
-*/
 
 #include "foundation/PxTransform.h"
 #include "extensions/PxConstraintExt.h"
@@ -45,12 +42,6 @@ namespace physx
 
 class PxVehicleConstraintShader : public PxConstraintConnector
 {
-//= ATTENTION! =====================================================================================
-// Changing the data layout of this class breaks the binary serialization format.  See comments for 
-// PX_BINARY_SERIAL_VERSION.  If a modification is required, please adjust the getBinaryMetaData 
-// function.  If the modification is made on a custom branch, please change PX_BINARY_SERIAL_VERSION
-// accordingly.
-//==================================================================================================
 public:
 
 	friend class PxVehicleWheels;
@@ -259,7 +250,7 @@ PX_COMPILE_TIME_ASSERT(0==(sizeof(PxVehicleConstraintShader)& 0x0f));
 
 /**
 \brief Default implementation of PxVehicleComputeTireForce
-@see PxVehicleComputeTireForce, PxVehicleTireForceCalculator
+\see PxVehicleComputeTireForce, PxVehicleTireForceCalculator
 */
 void PxVehicleComputeTireForceDefault
  (const void* shaderData, 
@@ -286,14 +277,14 @@ public:
 	/**
 	\brief Array of shader data - one data entry per tire.
 	Default values are pointers to PxVehicleTireData (stored in PxVehicleWheelsSimData) and are set in PxVehicleDriveTank::setup or PxVehicleDrive4W::setup
-	@see PxVehicleComputeTireForce, PxVehicleComputeTireForceDefault, PxVehicleWheelsSimData, PxVehicleDriveTank::setup, PxVehicleDrive4W::setup
+	\see PxVehicleComputeTireForce, PxVehicleComputeTireForceDefault, PxVehicleWheelsSimData, PxVehicleDriveTank::setup, PxVehicleDrive4W::setup
 	*/
 	const void** mShaderData;
 
 	/**
 	\brief Shader function.
 	Default value is PxVehicleComputeTireForceDefault and is set in  PxVehicleDriveTank::setup or PxVehicleDrive4W::setup
-	@see PxVehicleComputeTireForce, PxVehicleComputeTireForceDefault, PxVehicleWheelsSimData, PxVehicleDriveTank::setup, PxVehicleDrive4W::setup
+	\see PxVehicleComputeTireForce, PxVehicleComputeTireForceDefault, PxVehicleWheelsSimData, PxVehicleDriveTank::setup, PxVehicleDrive4W::setup
 	*/
 	PxVehicleComputeTireForce mShader;
 
@@ -310,5 +301,4 @@ PX_COMPILE_TIME_ASSERT(0==(sizeof(PxVehicleTireForceCalculator) & 15));
 #endif
 
 
-/** @} */
 #endif

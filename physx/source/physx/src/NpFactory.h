@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -37,7 +37,8 @@
 #include "PxPhysXConfig.h"
 #include "PxShape.h"
 #include "PxAggregate.h"
-
+#include "PxvGeometry.h"
+#include "solver/PxSolverDefs.h"
 
 #include "NpFEMCloth.h"  // to be deleted
 
@@ -67,27 +68,26 @@ class NpArticulationReducedCoordinate;
 class PxArticulationLink;
 class NpArticulationLink;
 class NpArticulationJointReducedCoordinate;
+class PxArticulationMimicJoint;
+class NpArticulationMimicJoint;
 
 class PxSoftBody;
 class PxFEMCloth;
-class PxParticleSystem;
 class PxHairSystem;
 
 #if PX_SUPPORT_GPU_PHYSX
 class NpSoftBody;
 class NpFEMCloth;
 class NpPBDParticleSystem;
-class NpFLIPParticleSystem;
-class NpMPMParticleSystem;
-class NpCustomParticSystem;
+class NpParticleBuffer;
+class NpParticleAndDiffuseBuffer;
+class NpParticleClothBuffer;
+class NpParticleRigidBuffer;
 class NpHairSystem;
 
 class NpFEMSoftBodyMaterial;
 class NpFEMClothMaterial;
 class NpPBDMaterial;
-class NpFLIPMaterial;
-class NpMPMMaterial;
-class NpCustomMaterial;
 #endif
 
 class PxMaterial;
@@ -96,8 +96,6 @@ class NpMaterial;
 class PxFEMSoftBodyMaterial;
 class PxFEMClothMaterial;
 class PxPBDMaterial;
-class PxFLIPMaterial;
-class PxMPMMaterial;
 
 class PxGeometry;
 
@@ -131,9 +129,6 @@ private:
 public:
 	static		void									createInstance();
 	static		void									destroyInstance();
-	static		void									registerArticulations();
-	static		void									registerArticulationRCs();
-	static		void									onParticleBufferRelease(PxParticleBuffer* buffer);
 
 				void									release();
 
@@ -160,7 +155,7 @@ public:
 				// Shapes
 				NpShape*								createShape(const PxGeometry& geometry, PxShapeFlags shapeFlags, PxMaterial*const* materials, PxU16 materialCount, bool isExclusive);
 				NpShape*								createShape(const PxGeometry& geometry, PxShapeFlags shapeFlags, PxFEMSoftBodyMaterial*const* materials, PxU16 materialCount, bool isExclusive);
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION && PX_SUPPORT_GPU_PHYSX
 				NpShape*								createShape(const PxGeometry& geometry, PxShapeFlags shapeFlags, PxFEMClothMaterial*const* materials, PxU16 materialCount, bool isExclusive);
 #endif
 				void									addShape(PxShape*, bool lock=true);
@@ -190,52 +185,43 @@ public:
 				NpArticulationJointReducedCoordinate*	createNpArticulationJointRC(NpArticulationLink& parent, const PxTransform& parentFrame, NpArticulationLink& child, const PxTransform& childFrame);
 				void									releaseArticulationJointRCToPool(NpArticulationJointReducedCoordinate& articulationJoint);
 
+				NpArticulationMimicJoint*				createNpArticulationMimicJoint(
+															const PxArticulationJointReducedCoordinate& jointA, const PxArticulationAxis::Enum axisA, 
+															const PxArticulationJointReducedCoordinate& jointB, const PxArticulationAxis::Enum axisB,		
+															const PxReal gearRatio, const PxReal offset);
+				void									releaseArticulationMimicJointToPool(NpArticulationMimicJoint& articulationMimicJoint);
+
+#if PX_SUPPORT_GPU_PHYSX
 				//Soft bodys
 				PxSoftBody*								createSoftBody(PxCudaContextManager& cudaContextManager);
 				void									releaseSoftBodyToPool(PxSoftBody& softBody);
 				
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+	#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
 				// FEMCloth
 				PxFEMCloth*								createFEMCloth(PxCudaContextManager& cudaContextManager);
 				void									releaseFEMClothToPool(PxFEMCloth& femCloth);
-#endif
-
+	#endif
 				//Particle systems
-				PxPBDParticleSystem*					createPBDParticleSystem(PxU32 maxNeighborhood, PxCudaContextManager& cudaContexManager);
+				PxPBDParticleSystem*					createPBDParticleSystem(PxU32 maxNeighborhood, PxReal neighborhoodScale, PxCudaContextManager& cudaContextManager);
 				void									releasePBDParticleSystemToPool(PxPBDParticleSystem& particleSystem);
 
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
-				//Particle systems
-				PxFLIPParticleSystem*					createFLIPParticleSystem(PxCudaContextManager& cudaContexManager);
-				void									releaseFLIPParticleSystemToPool(PxFLIPParticleSystem& particleSystem);
-
-				//Particle systems
-				PxMPMParticleSystem*					createMPMParticleSystem(PxCudaContextManager& cudaContexManager);
-				void									releaseMPMParticleSystemToPool(PxMPMParticleSystem& particleSystem);
-				
-				//Particle systems
-				PxCustomParticleSystem*					createCustomParticleSystem(PxCudaContextManager& cudaContexManager, PxU32 maxNeighborhood);
-				void									releaseCustomParticleSystemToPool(PxCustomParticleSystem& particleSystem);
-#endif
-
 				//Particle buffers
-				PxParticleBuffer*						createParticleBuffer(PxU32 maxParticles, PxU32 maxVolumes, PxCudaContextManager* cudaContextManager);
+				PxParticleBuffer*						createParticleBuffer(PxU32 maxParticles, PxU32 maxVolumes, PxCudaContextManager& cudaContextManager);
+				PxParticleAndDiffuseBuffer*				createParticleAndDiffuseBuffer(PxU32 maxParticles, PxU32 maxVolumes, PxU32 maxDiffuseParticles, PxCudaContextManager& cudaContextManager);
+				PxParticleClothBuffer*					createParticleClothBuffer(PxU32 maxParticles, PxU32 maxNumVolumes, PxU32 maxNumCloths, PxU32 maxNumTriangles, PxU32 maxNumSprings, PxCudaContextManager& cudaContextManager);
+				PxParticleRigidBuffer*					createParticleRigidBuffer(PxU32 maxParticles, PxU32 maxNumVolumes, PxU32 maxNumRigids, PxCudaContextManager& cudaContextManager);
+				void									addParticleBuffer(PxParticleBuffer* buffer, bool lock = true);
+				void									releaseParticleBufferToPool(PxParticleBuffer& particleBuffer);
+				void									releaseParticleAndDiffuseBufferToPool(PxParticleAndDiffuseBuffer& particleBuffer);
+				void									releaseParticleClothBufferToPool(PxParticleClothBuffer& particleBuffer);
+				void									releaseParticleRigidBufferToPool(PxParticleRigidBuffer& particleBuffer);
 
-				//Diffuse Particle buffers
-				PxParticleAndDiffuseBuffer*				createParticleAndDiffuseBuffer(PxU32 maxParticles, PxU32 maxVolumes, PxU32 maxDiffuseParticles, PxCudaContextManager* cudaContextManager);
-
-				//Particle cloth buffers
-				PxParticleClothBuffer*					createParticleClothBuffer(PxU32 maxParticles, PxU32 maxNumVolumes, PxU32 maxNumCloths, PxU32 maxNumTriangles, PxU32 maxNumSprings, PxCudaContextManager* cudaContextManager);
-
-				//Particle rigid buffers
-				PxParticleRigidBuffer*					createParticleRigidBuffer(PxU32 maxParticles, PxU32 maxNumVolumes, PxU32 maxNumRigids, PxCudaContextManager* cudaContextManager);
-
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+	#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
 				// HairSystem
 				PxHairSystem*							createHairSystem(PxCudaContextManager& cudaContextManager);
 				void									releaseHairSystemToPool(PxHairSystem& hairSystem);
+	#endif
 #endif
-
 				// Aggregates
 				PxAggregate*							createAggregate(PxU32 maxActors, PxU32 maxShapes, PxAggregateFilterHint filterHint);
 				void									addAggregate(PxAggregate*, bool lock=true);
@@ -248,26 +234,16 @@ public:
 				PxMaterial*								createMaterial(PxReal staticFriction, PxReal dynamicFriction, PxReal restitution);
 				void									releaseMaterialToPool(NpMaterial& material);
 
+#if PX_SUPPORT_GPU_PHYSX
 				PxFEMSoftBodyMaterial*					createFEMSoftBodyMaterial(PxReal youngs, PxReal poissons, PxReal dynamicFriction);
 				void									releaseFEMMaterialToPool(PxFEMSoftBodyMaterial& material);
 
-				PxFEMClothMaterial*						createFEMClothMaterial(PxReal youngs, PxReal poissons, PxReal dynamicFriction);
+				PxFEMClothMaterial*						createFEMClothMaterial(PxReal youngs, PxReal poissons, PxReal dynamicFriction, PxReal thickness);
 				void									releaseFEMClothMaterialToPool(PxFEMClothMaterial& material);
 
 				PxPBDMaterial*							createPBDMaterial(PxReal friction, PxReal damping, PxReal adhesion, PxReal viscosity, PxReal vorticityConfinement, PxReal surfaceTension, PxReal cohesion, PxReal lift, PxReal drag, PxReal cflCoefficient, PxReal gravityScale);
 				void									releasePBDMaterialToPool(PxPBDMaterial& material);
-				
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
-				PxFLIPMaterial*							createFLIPMaterial(PxReal friction, PxReal damping, PxReal adhesion, PxReal viscosity, PxReal gravityScale);
-				void									releaseFLIPMaterialToPool(PxFLIPMaterial& material);
 #endif
-				
-				PxMPMMaterial*							createMPMMaterial(PxReal friction, PxReal damping, PxReal adhesion, bool isPlastic, PxReal youngsModulus, PxReal poissons, PxReal hardening, PxReal criticalCompression, PxReal criticalStretch, PxReal tensileDamageSensitivity, PxReal compressiveDamageSensitivity, PxReal attractiveForceResidual, PxReal gravityScale);
-				void									releaseMPMMaterialToPool(PxMPMMaterial& material);
-
-				PxCustomMaterial*						createCustomMaterial(void* gpuBuffer);
-				void									releaseCustomMaterialToPool(PxCustomMaterial& material);
-
 				// It's easiest to track these uninvasively, so it's OK to use the Px pointers
 				void									onActorRelease(PxActor*);
 				void									onConstraintRelease(PxConstraint*);
@@ -275,9 +251,9 @@ public:
 				void									onArticulationRelease(PxArticulationReducedCoordinate*);
 				void									onShapeRelease(PxShape*);
 
-				void									addParticleBuffer(PxParticleBuffer* buffer, bool lock = true);
-				void									onParticleBufferReleaseInternal(PxParticleBuffer* buffer);
-
+#if PX_SUPPORT_GPU_PHYSX
+				void									onParticleBufferRelease(PxParticleBuffer*);
+#endif
 				NpConnectorArray*						acquireConnectorArray();
 				void									releaseConnectorArray(NpConnectorArray*);
 				
@@ -288,8 +264,6 @@ public:
 #endif
 
 private:
-				void									releaseExclusiveShapeUserReferences();
-
 				PxPool<NpConnectorArray>				mConnectorArrayPool;
 				PxMutex									mConnectorArrayPoolLock;
 
@@ -300,8 +274,9 @@ private:
 				PxHashSet<PxConstraint*>						mConstraintTracking;
 				PxHashSet<PxActor*>								mActorTracking;				
 				PxCoalescedHashSet<PxShape*>					mShapeTracking;
+#if PX_SUPPORT_GPU_PHYSX
 				PxHashSet<PxParticleBuffer*>				mParticleBufferTracking;
-
+#endif
 				PxPool2<NpRigidDynamic, 4096>			mRigidDynamicPool;
 				PxMutex									mRigidDynamicPoolLock;
 
@@ -326,60 +301,51 @@ private:
 				PxPool2<NpArticulationLink, 4096>		mArticulationLinkPool;
 				PxMutex									mArticulationLinkPoolLock;
 
-
 				PxPool2<NpArticulationJointReducedCoordinate, 4096> mArticulationRCJointPool;
 				PxMutex												mArticulationJointRCPoolLock;
 
+				PxPool2<NpArticulationMimicJoint, 4096>	mArticulationMimicJointPool;
+				PxMutex									mArticulationMimicJointPoolLock;
+
 #if PX_SUPPORT_GPU_PHYSX
-				PxPool2<NpSoftBody, 4096>				mSoftBodyPool;
+				PxPool2<NpSoftBody, 1024>				mSoftBodyPool;
 				PxMutex									mSoftBodyPoolLock;
 
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
-				PxPool2<NpFEMCloth, 4096>				mFEMClothPool;
+	#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+				PxPool2<NpFEMCloth, 1024>				mFEMClothPool;
 				PxMutex									mFEMClothPoolLock;
-#endif
-
-				PxPool2<NpPBDParticleSystem, 4096>		mPBDParticleSystemPool;
+	#endif
+				PxPool2<NpPBDParticleSystem, 1024>		mPBDParticleSystemPool;
 				PxMutex									mPBDParticleSystemPoolLock;
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
-				PxPool2<NpFLIPParticleSystem, 4096>		mFLIPParticleSystemPool;
-				PxMutex									mFLIPParticleSystemPoolLock;
 
-				PxPool2<NpMPMParticleSystem, 4096>		mMPMParticleSystemPool;
-				PxMutex									mMPMParticleSystemPoolLock;
+				PxPool2<NpParticleBuffer, 1024>			mParticleBufferPool;
+				PxMutex									mParticleBufferPoolLock;
 
-				PxPool2<NpCustomParticleSystem, 4096>	mCustomParticleSystemPool;
-				PxMutex									mCustomParticleSystemPoolLock;
-#endif
+				PxPool2<NpParticleAndDiffuseBuffer, 1024> mParticleAndDiffuseBufferPool;
+				PxMutex									mParticleAndDiffuseBufferPoolLock;
 
-				PxPool2<NpFEMSoftBodyMaterial, 4096>	mFEMMaterialPool;
+				PxPool2<NpParticleClothBuffer, 1024>	mParticleClothBufferPool;
+				PxMutex									mParticleClothBufferPoolLock;
+
+				PxPool2<NpParticleRigidBuffer, 1024>	mParticleRigidBufferPool;
+				PxMutex									mParticleRigidBufferPoolLock;
+
+				PxPool2<NpFEMSoftBodyMaterial, 1024>	mFEMMaterialPool;
 				PxMutex									mFEMMaterialPoolLock;
 
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
-				PxPool2<NpFEMClothMaterial, 4096>		mFEMClothMaterialPool;
+	#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+				PxPool2<NpFEMClothMaterial, 1024>		mFEMClothMaterialPool;
 				PxMutex									mFEMClothMaterialPoolLock;
-#endif
-				PxPool2<NpPBDMaterial, 4096>			mPBDMaterialPool;
+	#endif
+				PxPool2<NpPBDMaterial, 1024>			mPBDMaterialPool;
 				PxMutex									mPBDMaterialPoolLock;
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
-				PxPool2<NpFLIPMaterial, 4096>			mFLIPMaterialPool;
-				PxMutex									mFLIPMaterialPoolLock;
-				
-				PxPool2<NpMPMMaterial, 4096>			mMPMMaterialPool;
-				PxMutex									mMPMMaterialPoolLock;
-
-				PxPool2<NpCustomMaterial, 4096>			mCustomMaterialPool;
-				PxMutex									mCustomMaterialPoolLock;
-				/*PxPool2<NpFEMSoftBodyMaterial, 4096>	mFEMMaterialPool;
-				PxMutex									mFEMMaterialPoolLock;*/
-
-				PxPool2<NpHairSystem, 4096>				mHairSystemPool;
+	#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+				PxPool2<NpHairSystem, 1024>				mHairSystemPool;
 				PxMutex									mHairSystemPoolLock;
-#endif
+	#endif
 #endif
 
 	static		NpFactory*								mInstance;
-				PxU64									mGpuMemStat;
 
 #if PX_SUPPORT_PVD
 				NpFactoryListener*						mNpFactoryListener;
@@ -390,6 +356,7 @@ private:
 	void	NpDestroyRigidDynamic(NpRigidDynamic* np);
 	void	NpDestroyArticulationLink(NpArticulationLink* np);
 	void	NpDestroyArticulationJoint(PxArticulationJointReducedCoordinate* np);
+	void	NpDestroyArticulationMimicJoint(PxArticulationMimicJoint* np);
 	void	NpDestroyArticulation(PxArticulationReducedCoordinate* artic);
 	void	NpDestroyAggregate(NpAggregate* np);
 	void	NpDestroyShape(NpShape* np);
@@ -399,9 +366,10 @@ private:
 	void	NpDestroySoftBody(NpSoftBody* softBody);
 	void	NpDestroyFEMCloth(NpFEMCloth* femCloth);
 	void	NpDestroyParticleSystem(NpPBDParticleSystem* particleSystem);
-	void	NpDestroyParticleSystem(NpFLIPParticleSystem* particleSystem);
-	void	NpDestroyParticleSystem(NpMPMParticleSystem* particleSystem);
-	void	NpDestroyParticleSystem(NpCustomParticleSystem* particleSystem);
+	void	NpDestroyParticleBuffer(NpParticleBuffer* particleBuffer);
+	void	NpDestroyParticleBuffer(NpParticleAndDiffuseBuffer* particleBuffer);
+	void	NpDestroyParticleBuffer(NpParticleClothBuffer* particleBuffer);
+	void	NpDestroyParticleBuffer(NpParticleRigidBuffer* particleBuffer);
 	void	NpDestroyHairSystem(NpHairSystem* hairSystem);
 #endif
 }

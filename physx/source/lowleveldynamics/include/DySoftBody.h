@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 
 #ifndef DY_SOFTBODY_H
 #define DY_SOFTBODY_H
@@ -120,9 +120,9 @@ namespace physx
 			PX_FORCE_INLINE const SoftBodyCore& getCore() const { return mCore; }
 			PX_FORCE_INLINE SoftBodyCore& getCore() { return mCore; }
 
-			PX_FORCE_INLINE PxU16 getIterationCounts() { return mCore.solverIterationCounts; }
+			PX_FORCE_INLINE PxU16 getIterationCounts() const { return mCore.solverIterationCounts; }
 
-			PX_FORCE_INLINE PxU32 getGpuSoftBodyIndex() { return mGpuRemapId;  }
+			PX_FORCE_INLINE PxU32 getGpuSoftBodyIndex() const { return mGpuRemapId;  }
 
 			//These variables are used in the constraint partition
 			PxU16 maxSolverFrictionProgress;
@@ -138,7 +138,7 @@ namespace physx
 			SoftBodyFilterArray*    mSoftBodySoftBodyFilterPairs;
 			PxArray <Dy::SoftBody*>* mDirtySoftBodyForFilterPairs; //pointer to the array of mDirtySoftBodyForFilterPairs in PxgSimulationController.cpp
 
-			PxArray<PxU32>			mSoftBodyClothAttachmentIdReferences;
+			PxArray<PxU32>			mSoftBodySoftBodyAttachmentIdReferences;
 			bool					mFilterDirty;
 			bool					mFilterInDirtyList;
 

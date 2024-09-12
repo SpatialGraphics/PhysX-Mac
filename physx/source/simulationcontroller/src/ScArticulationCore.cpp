@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -69,7 +69,7 @@ void Sc::ArticulationCore::setWakeCounter(const PxReal v)
 		mSim->setArticulationDirty(Dy::ArticulationDirtyFlag::eDIRTY_WAKECOUNTER);
 	}
 
-#ifdef _DEBUG
+#if PX_DEBUG
 	if(mSim)
 		mSim->debugCheckWakeCounterOfLinks(v);
 #endif
@@ -110,7 +110,7 @@ void Sc::ArticulationCore::wakeUp(PxReal wakeCounter)
 		arti->setGpuDirtyFlag(Dy::ArticulationDirtyFlag::eDIRTY_WAKECOUNTER);
 	}
 
-#ifdef _DEBUG
+#if PX_DEBUG
 	if(mSim)
 		mSim->debugCheckSleepStateOfLinks(false);
 #endif
@@ -126,7 +126,7 @@ void Sc::ArticulationCore::putToSleep()
 		arti->setGpuDirtyFlag(Dy::ArticulationDirtyFlag::eDIRTY_WAKECOUNTER);
 	}
 
-#ifdef _DEBUG
+#if PX_DEBUG
 	if(mSim)
 		mSim->debugCheckSleepStateOfLinks(true);
 #endif
@@ -135,10 +135,12 @@ void Sc::ArticulationCore::putToSleep()
 void Sc::ArticulationCore::setArticulationFlags(PxArticulationFlags flags)
 {
 	mCore.flags = flags;
-	if (mSim)
+	if(mSim)
 	{
-		const bool isKinematicLink = flags & PxArticulationFlag::eFIX_BASE;
-		mSim->setKinematicLink(isKinematicLink);
+		mSim->setArticulationDirty(Dy::ArticulationDirtyFlag::eDIRTY_USER_FLAGS);
+
+		const bool isFixedBaseLink = flags & PxArticulationFlag::eFIX_BASE;
+		mSim->setFixedBaseLink(isFixedBaseLink);
 	}
 }
 
@@ -170,10 +172,10 @@ bool Sc::ArticulationCore::applyCache(PxArticulationCache& cache, const PxArticu
 	return false;
 }
 
-void Sc::ArticulationCore::copyInternalStateToCache(PxArticulationCache& cache, const PxArticulationCacheFlags flag) const
+void Sc::ArticulationCore::copyInternalStateToCache(PxArticulationCache& cache, const PxArticulationCacheFlags flag, const bool isGpuSimEnabled) const
 {
 	if(mSim)
-		mSim->copyInternalStateToCache(cache, flag);
+		mSim->copyInternalStateToCache(cache, flag, isGpuSimEnabled);
 }
 
 
@@ -253,9 +255,9 @@ PxU32 Sc::ArticulationCore::getCoefficientMatrixSize() const
 	return mSim ? mSim->getCoefficientMatrixSize() : 0xFFFFFFFFu;
 }
 
-PxSpatialVelocity Sc::ArticulationCore::getLinkAcceleration(const PxU32 linkId) const
+PxSpatialVelocity Sc::ArticulationCore::getLinkAcceleration(const PxU32 linkId, const bool isGpuSimEnabled) const
 {
-	return mSim ? mSim->getLinkAcceleration(linkId) : PxSpatialVelocity();
+	return mSim ? mSim->getLinkAcceleration(linkId, isGpuSimEnabled) : PxSpatialVelocity();
 }
 
 PxU32 Sc::ArticulationCore::getGpuArticulationIndex() const
@@ -269,7 +271,6 @@ void Sc::ArticulationCore::updateKinematic(PxArticulationKinematicFlags flags)
 
 	if (mSim)
 		mSim->updateKinematic(flags);
-
 }
 
 PxNodeIndex Sc::ArticulationCore::getIslandNodeIndex() const

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -42,9 +42,6 @@ namespace Sc
 		PX_FORCE_INLINE	ElementSim&	getElement0()						const	{ return mElement0;						}
 		PX_FORCE_INLINE	ElementSim&	getElement1()						const	{ return mElement1;						}
 
-		PX_FORCE_INLINE	void		setFilterPairIndex(PxU32 filterPairIndex)	{ mFilterPairIndex = filterPairIndex;	}
-		PX_FORCE_INLINE	PxU32		getFilterPairIndex()				const	{ return mFilterPairIndex;				}
-
 	protected:
 		PX_INLINE					ElementSimInteraction(ElementSim& element0, ElementSim& element1, InteractionType::Enum type, PxU8 flags);
 									~ElementSimInteraction() {}
@@ -53,7 +50,6 @@ namespace Sc
 
 						ElementSim&	mElement0;
 						ElementSim&	mElement1;
-						PxU32		mFilterPairIndex;
 						PxU32		mFlags;		// PT: moved there in padding bytes, from ShapeInteraction
 	};
 
@@ -62,10 +58,9 @@ namespace Sc
 //////////////////////////////////////////////////////////////////////////
 
 PX_INLINE Sc::ElementSimInteraction::ElementSimInteraction(ElementSim& element0, ElementSim& element1, InteractionType::Enum type, PxU8 flags) :
-	Interaction	(element0.getActor(), element1.getActor(), type, flags),
-	mElement0	(element0),
-	mElement1	(element1),
-	mFilterPairIndex(INVALID_FILTER_PAIR_INDEX)
+	Interaction		(element0.getActor(), element1.getActor(), type, flags),
+	mElement0		(element0),
+	mElement1		(element1)
 {
 }
 

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -38,8 +38,6 @@
 #include "NpFEMSoftBodyMaterial.h"
 #include "NpFEMClothMaterial.h"
 #include "NpPBDMaterial.h"
-#include "NpFLIPMaterial.h"
-#include "NpMPMMaterial.h"
 #include "NpPhysicsInsertionCallback.h"
 #include "NpMaterialManager.h"
 #include "ScPhysics.h"
@@ -91,8 +89,7 @@ template <typename T> class NpMaterialAccessor;
 
 class NpPhysics : public PxPhysics, public PxUserAllocated
 {
-	NpPhysics& operator=(const NpPhysics&);
-	NpPhysics(const NpPhysics &);
+	PX_NOCOPY(NpPhysics)
 
 	struct NpDelListenerEntry : public PxUserAllocated
 	{
@@ -142,14 +139,10 @@ public:
 	virtual		PxRigidDynamic*						createRigidDynamic(const PxTransform&)	PX_OVERRIDE;
 	virtual		PxArticulationReducedCoordinate*	createArticulationReducedCoordinate()	PX_OVERRIDE;
 	virtual		PxSoftBody*							createSoftBody(PxCudaContextManager& cudaContextManager)	PX_OVERRIDE;
-	virtual		PxHairSystem*				createHairSystem(PxCudaContextManager& cudaContextManager)	PX_OVERRIDE;
-	virtual		PxFEMCloth*					createFEMCloth(PxCudaContextManager& cudaContextManager)	PX_OVERRIDE;
-	virtual		PxPBDParticleSystem*		createPBDParticleSystem(PxCudaContextManager& cudaContexManager, PxU32 maxNeighborhood)	PX_OVERRIDE;
-	virtual		PxFLIPParticleSystem*		createFLIPParticleSystem(PxCudaContextManager& cudaContexManager)	PX_OVERRIDE;
-	virtual		PxMPMParticleSystem*		createMPMParticleSystem(PxCudaContextManager& cudaContexManager)	PX_OVERRIDE;
-	virtual		PxCustomParticleSystem*		createCustomParticleSystem(PxCudaContextManager& cudaContexManager, PxU32 maxNeighborhood)	PX_OVERRIDE;
+	virtual		PxHairSystem*						createHairSystem(PxCudaContextManager& cudaContextManager)	PX_OVERRIDE;
+	virtual		PxFEMCloth*							createFEMCloth(PxCudaContextManager& cudaContextManager)	PX_OVERRIDE;
+	virtual		PxPBDParticleSystem*				createPBDParticleSystem(PxCudaContextManager& cudaContextManager, PxU32 maxNeighborhood, PxReal neighborhoodScale)	PX_OVERRIDE;
 
-	virtual		PxBuffer*					createBuffer(PxU64 byteSize, PxBufferType::Enum bufferType, PxCudaContextManager* cudaContextManager)	PX_OVERRIDE;
 	virtual		PxConstraint*				createConstraint(PxRigidActor* actor0, PxRigidActor* actor1, PxConstraintConnector& connector, const PxConstraintShaderTable& shaders, PxU32 dataSize)	PX_OVERRIDE;
 	virtual		PxAggregate*				createAggregate(PxU32 maxActors, PxU32 maxShapes, PxAggregateFilterHint filterHint)	PX_OVERRIDE;
 
@@ -168,7 +161,7 @@ public:
 	virtual		PxU32						getNbFEMSoftBodyMaterials() const	PX_OVERRIDE;
 	virtual		PxU32						getFEMSoftBodyMaterials(PxFEMSoftBodyMaterial** userBuffer, PxU32 bufferSize, PxU32 startIndex = 0) const	PX_OVERRIDE;
 
-	virtual		PxFEMClothMaterial*			createFEMClothMaterial(PxReal youngs, PxReal poissons, PxReal dynamicFriction)	PX_OVERRIDE;
+	virtual		PxFEMClothMaterial*			createFEMClothMaterial(PxReal youngs, PxReal poissons, PxReal dynamicFriction, PxReal thickness)	PX_OVERRIDE;
 	virtual		PxU32						getNbFEMClothMaterials() const	PX_OVERRIDE;
 	virtual		PxU32						getFEMClothMaterials(PxFEMClothMaterial** userBuffer, PxU32 bufferSize, PxU32 startIndex = 0) const	PX_OVERRIDE;
 
@@ -176,18 +169,6 @@ public:
 	virtual		PxU32						getNbPBDMaterials() const	PX_OVERRIDE;
 	virtual		PxU32						getPBDMaterials(PxPBDMaterial** userBuffer, PxU32 bufferSize, PxU32 startIndex = 0) const	PX_OVERRIDE;
 	
-	virtual		PxFLIPMaterial*				createFLIPMaterial(PxReal friction, PxReal damping, PxReal maxVelocity, PxReal viscosity, PxReal gravityScale)	PX_OVERRIDE;
-	virtual		PxU32						getNbFLIPMaterials() const	PX_OVERRIDE;
-	virtual		PxU32						getFLIPMaterials(PxFLIPMaterial** userBuffer, PxU32 bufferSize, PxU32 startIndex = 0) const	PX_OVERRIDE;
-	
-	virtual		PxMPMMaterial*				createMPMMaterial(PxReal friction, PxReal damping, PxReal maxVelocity, bool isPlastic, PxReal youngsModulus, PxReal poissons, PxReal hardening, PxReal criticalCompression, PxReal criticalStretch, PxReal tensileDamageSensitivity, PxReal compressiveDamageSensitivity, PxReal attractiveForceResidual, PxReal gravityScale)	PX_OVERRIDE;
-	virtual		PxU32						getNbMPMMaterials() const	PX_OVERRIDE;
-	virtual		PxU32						getMPMMaterials(PxMPMMaterial** userBuffer, PxU32 bufferSize, PxU32 startIndex = 0) const	PX_OVERRIDE;
-
-	virtual		PxCustomMaterial*			createCustomMaterial(void* gpuBuffer)	PX_OVERRIDE;
-	virtual		PxU32						getNbCustomMaterials() const	PX_OVERRIDE;
-	virtual		PxU32						getCustomMaterials(PxCustomMaterial** userBuffer, PxU32 bufferSize, PxU32 startIndex = 0) const	PX_OVERRIDE;
-
 	virtual		PxTriangleMesh*				createTriangleMesh(PxInputStream&)	PX_OVERRIDE;
 	virtual		PxU32						getNbTriangleMeshes()	const	PX_OVERRIDE;
 	virtual		PxU32						getTriangleMeshes(PxTriangleMesh** userBuffer, PxU32 bufferSize, PxU32 startIndex=0)	const	PX_OVERRIDE;
@@ -210,10 +191,10 @@ public:
 	virtual		PxU32						getNbBVHs() const	PX_OVERRIDE;
 	virtual		PxU32						getBVHs(PxBVH** userBuffer, PxU32 bufferSize, PxU32 startIndex=0) const	PX_OVERRIDE;
 
-	virtual		PxParticleBuffer*			createParticleBuffer(PxU32 maxParticles, PxU32 maxVolumes, PxCudaContextManager* cudaContexManager)	PX_OVERRIDE;
-	virtual		PxParticleAndDiffuseBuffer*	createParticleAndDiffuseBuffer(PxU32 maxParticles, PxU32 maxVolumes, PxU32 maxDiffuseParticles, PxCudaContextManager* cudaContexManager)	PX_OVERRIDE;
-	virtual		PxParticleClothBuffer*		createParticleClothBuffer(PxU32 maxParticles, PxU32 maxNumVolumes, PxU32 maxNumCloths, PxU32 maxNumTriangles, PxU32 maxNumSprings, PxCudaContextManager* cudaContexManager)	PX_OVERRIDE;
-	virtual		PxParticleRigidBuffer*		createParticleRigidBuffer(PxU32 maxParticles, PxU32 maxNumVolumes, PxU32 maxNumRigids, PxCudaContextManager* cudaContexManager)	PX_OVERRIDE;
+	virtual		PxParticleBuffer*			createParticleBuffer(PxU32 maxParticles, PxU32 maxVolumes, PxCudaContextManager* cudaContextManager)	PX_OVERRIDE;
+	virtual		PxParticleAndDiffuseBuffer*	createParticleAndDiffuseBuffer(PxU32 maxParticles, PxU32 maxVolumes, PxU32 maxDiffuseParticles, PxCudaContextManager* cudaContextManager)	PX_OVERRIDE;
+	virtual		PxParticleClothBuffer*		createParticleClothBuffer(PxU32 maxParticles, PxU32 maxNumVolumes, PxU32 maxNumCloths, PxU32 maxNumTriangles, PxU32 maxNumSprings, PxCudaContextManager* cudaContextManager)	PX_OVERRIDE;
+	virtual		PxParticleRigidBuffer*		createParticleRigidBuffer(PxU32 maxParticles, PxU32 maxNumVolumes, PxU32 maxNumRigids, PxCudaContextManager* cudaContextManager)	PX_OVERRIDE;
 
 #if PX_SUPPORT_GPU_PHYSX
 	void							registerPhysXIndicatorGpuClient();
@@ -231,9 +212,6 @@ public:
 
 	PX_INLINE	NpScene*			getScene(PxU32 i) const { return mSceneArray[i]; }
 	PX_INLINE	PxU32				getNumScenes() const { return mSceneArray.size(); }
-#if PX_CHECKED
-	static PX_INLINE	void		heightfieldsAreRegistered() { mHeightFieldsRegistered = true;  }
-#endif
 
 	virtual		void				registerDeletionListener(PxDeletionListener& observer, const PxDeletionEventFlags& deletionEvents, bool restrictedObjectSet)	PX_OVERRIDE;
 	virtual		void				unregisterDeletionListener(PxDeletionListener& observer)	PX_OVERRIDE;
@@ -246,58 +224,38 @@ public:
 
 	virtual		PxInsertionCallback&	getPhysicsInsertionCallback() PX_OVERRIDE	{ return mObjectInsertion; }
 
-				void				removeMaterialFromTable(NpMaterial&);
-				void				updateMaterial(NpMaterial&);
 				bool				sendMaterialTable(NpScene&);
 
 				NpMaterialManager<NpMaterial>&				getMaterialManager()	{	return mMasterMaterialManager;	}
-				NpMaterialManager<NpFEMSoftBodyMaterial>&	getFEMSoftBodyMaterialManager() { return mMasterFEMSoftBodyMaterialManager; }
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
-				NpMaterialManager<NpFEMClothMaterial>&		getFEMClothMaterialManager() { return mMasterFEMClothMaterialManager; }
+#if PX_SUPPORT_GPU_PHYSX
+				NpMaterialManager<NpFEMSoftBodyMaterial>&	getFEMSoftBodyMaterialManager()	{ return mMasterFEMSoftBodyMaterialManager; }
+				NpMaterialManager<NpPBDMaterial>&			getPBDMaterialManager()			{ return mMasterPBDMaterialManager; }
+	#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+				NpMaterialManager<NpFEMClothMaterial>&		getFEMClothMaterialManager()	{ return mMasterFEMClothMaterialManager; }
+	#endif
 #endif
-				NpMaterialManager<NpPBDMaterial>&			getPBDMaterialManager() { return mMasterPBDMaterialManager; }
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
-				NpMaterialManager<NpFLIPMaterial>&			getFLIPMaterialManager() { return mMasterFLIPMaterialManager; }
-				NpMaterialManager<NpMPMMaterial>&			getMPMMaterialManager() { return mMasterMPMMaterialManager; }
-				NpMaterialManager<NpCustomMaterial>&		getCustomMaterialManager() { return mMasterCustomMaterialManager; }
-#endif
-				/*template <typename T>
-				NpMaterialManager<T>* getMaterialManagerT();
-				template <>
-				NpMaterialManager<NpMaterial>*		getMaterialManagerT() { return &mMasterMaterialManager; }
-				template <>
-				NpMaterialManager<NpFEMSoftBodyMaterial>*		getMaterialManagerT() { return &mMasterFEMSoftBodyMaterialManager; }
-				template <>
-				NpMaterialManager<NpFEMClothMaterial>*		getMaterialManagerT() { return &mMasterFEMClothMaterialManager; }*/
-
 				NpMaterial*									addMaterial(NpMaterial* np);
+				void										removeMaterialFromTable(NpMaterial&);
+				void										updateMaterial(NpMaterial&);
 
-				void										removeFEMSoftBodyMaterialFromTable(NpFEMSoftBodyMaterial&);
-				void										updateFEMSoftBodyMaterial(NpFEMSoftBodyMaterial&);
-								
-				NpFEMSoftBodyMaterial*						addFEMMaterial(NpFEMSoftBodyMaterial* np);
+#if PX_SUPPORT_GPU_PHYSX
+				NpFEMSoftBodyMaterial*						addMaterial(NpFEMSoftBodyMaterial* np);
+				void										removeMaterialFromTable(NpFEMSoftBodyMaterial&);
+				void										updateMaterial(NpFEMSoftBodyMaterial&);
 
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
-				void										removeFEMClothMaterialFromTable(NpFEMClothMaterial&);
-				void										updateFEMClothMaterial(NpFEMClothMaterial&);
-				NpFEMClothMaterial*							addFEMClothMaterial(NpFEMClothMaterial* np);
+				NpPBDMaterial*								addMaterial(NpPBDMaterial* np);
+				void										removeMaterialFromTable(NpPBDMaterial&);
+				void										updateMaterial(NpPBDMaterial&);
+
+	#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+				NpFEMClothMaterial*							addMaterial(NpFEMClothMaterial* np);
+				void										removeMaterialFromTable(NpFEMClothMaterial&);
+				void										updateMaterial(NpFEMClothMaterial&);
+	#endif
 #endif
-				void										removePBDMaterialFromTable(NpPBDMaterial&);
-				void										updatePBDMaterial(NpPBDMaterial&);
-				NpPBDMaterial*								addPBDMaterial(NpPBDMaterial* np);
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
-				void										removeFLIPMaterialFromTable(NpFLIPMaterial&);
-				void										updateFLIPMaterial(NpFLIPMaterial&);
-				NpFLIPMaterial*								addFLIPMaterial(NpFLIPMaterial* np);
-				
-				void										removeMPMMaterialFromTable(NpMPMMaterial&);
-				void										updateMPMMaterial(NpMPMMaterial&);
-				NpMPMMaterial*								addMPMMaterial(NpMPMMaterial* np);
 
-				void										removeCustomMaterialFromTable(NpCustomMaterial&);
-				void										updateCustomMaterial(NpCustomMaterial&);
-				NpCustomMaterial*							addCustomMaterial(NpCustomMaterial* np);
-#endif
+				PX_FORCE_INLINE PxMutex& getSceneAndMaterialMutex() { return mSceneAndMaterialMutex; }
+
 	static		void				initOffsetTables(PxvOffsetTable& pxvOffsetTable);
 
 	static bool apiReentryLock;
@@ -314,15 +272,9 @@ private:
 
 				Sc::Physics										mPhysics;
 				NpMaterialManager<NpMaterial>					mMasterMaterialManager;
+#if PX_SUPPORT_GPU_PHYSX
 				NpMaterialManager<NpFEMSoftBodyMaterial>		mMasterFEMSoftBodyMaterialManager;
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
-				NpMaterialManager<NpFEMClothMaterial>			mMasterFEMClothMaterialManager;
-#endif
 				NpMaterialManager<NpPBDMaterial>				mMasterPBDMaterialManager;
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
-				NpMaterialManager<NpFLIPMaterial>				mMasterFLIPMaterialManager;
-				NpMaterialManager<NpMPMMaterial>				mMasterMPMMaterialManager;
-				NpMaterialManager<NpCustomMaterial>				mMasterCustomMaterialManager;
 #endif
 				NpPhysicsInsertionCallback	mObjectInsertion;
 
@@ -340,7 +292,19 @@ private:
 				MeshDeletionListener					mDeletionMeshListener;
 				bool									mDeletionListenersExist;
 
-				PxMutex									mSceneAndMaterialMutex;				// guarantees thread safety for API calls related to scene and material containers
+				PxMutex									mSceneAndMaterialMutex;
+				// guarantees thread safety for API calls related to scene and material containers
+				// For example:
+				// - add/remove scenes to/from scene pointer array
+				//   vs
+				//   adding material add/update/remove events to the scenes
+				//
+				// - parallel access to material
+				//
+				// The granularity seems a bit coarse though. Would rather expect two mutexes,
+				// one to protect access to the scene list and one for access to the material manager.
+				// This would probably need careful implementation to avoid deadlocks.
+				//
 
 				PxFoundation&							mFoundation;
 
@@ -357,13 +321,10 @@ private:
 	static		PxU32				mRefCount;
 	static		NpPhysics*			mInstance;
 
-#if PX_CHECKED
-	static		bool				mHeightFieldsRegistered;	//just for error checking
-#endif
-
 	friend class NpCollection;
 
 #if PX_SUPPORT_OMNI_PVD
+	public:
 	class OmniPvdListener : public physx::NpFactoryListener
 	{
 	public:
@@ -372,6 +333,16 @@ private:
 		virtual void onObjectRemove(const PxBase*);
 	}
 	mOmniPvdListener;
+	private:
+#endif
+
+// GW: these must be the last defined members for now.  Otherwise it appears to mess up the offsets
+// expected when linking SDK dlls against unit tests due to differing values of PX_ENABLE_FEATURES_UNDER_CONSTRUCTION...
+// this warrants further investigation and hopefully a better solution
+#if PX_SUPPORT_GPU_PHYSX
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+				NpMaterialManager<NpFEMClothMaterial>			mMasterFEMClothMaterialManager;
+#endif
 #endif
 };
 
@@ -384,12 +355,22 @@ public:
 	}
 };
 
+#if PX_SUPPORT_GPU_PHYSX
 template <> class NpMaterialAccessor<NpFEMSoftBodyMaterial>
 {
 public:
 	static NpMaterialManager<NpFEMSoftBodyMaterial>& getMaterialManager(NpPhysics& physics)
 	{
 		return physics.getFEMSoftBodyMaterialManager();
+	}
+};
+
+template <> class NpMaterialAccessor<NpPBDMaterial>
+{
+public:
+	static NpMaterialManager<NpPBDMaterial>& getMaterialManager(NpPhysics& physics)
+	{
+		return physics.getPBDMaterialManager();
 	}
 };
 
@@ -402,44 +383,8 @@ public:
 		return physics.getFEMClothMaterialManager();
 	}
 };
+
 #endif
-
-template <> class NpMaterialAccessor<NpPBDMaterial>
-{
-public:
-	static NpMaterialManager<NpPBDMaterial>& getMaterialManager(NpPhysics& physics)
-	{
-		return physics.getPBDMaterialManager();
-	}
-};
-
-#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
-template <> class NpMaterialAccessor<NpFLIPMaterial>
-{
-public:
-	static NpMaterialManager<NpFLIPMaterial>& getMaterialManager(NpPhysics& physics)
-	{
-		return physics.getFLIPMaterialManager();
-	}
-};
-
-template <> class NpMaterialAccessor<NpMPMMaterial>
-{
-public:
-	static NpMaterialManager<NpMPMMaterial>& getMaterialManager(NpPhysics& physics)
-	{
-		return physics.getMPMMaterialManager();
-	}
-};
-
-template <> class NpMaterialAccessor<NpCustomMaterial>
-{
-public:
-	static NpMaterialManager<NpCustomMaterial>& getMaterialManager(NpPhysics& physics)
-	{
-		return physics.getCustomMaterialManager();
-	}
-};
 #endif
 
 #if PX_VC

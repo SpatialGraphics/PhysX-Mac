@@ -22,17 +22,17 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_PHYSX_COMMON_CONFIG_H
 #define PX_PHYSX_COMMON_CONFIG_H
 
-/** \addtogroup common 
-@{ */
-
 #include "foundation/Px.h"
+
+//Fills almost all allocated (host and device memory) with 0xcdcdcdcd (=3452816845)
+#define PX_STOMP_ALLOCATED_MEMORY 0
 
 /*Disable support for VS2017 prior version 15.5.1 for windows platform, because of a compiler bug:
 https://developercommunity.visualstudio.com/content/problem/66047/possible-compiler-bug.html
@@ -122,5 +122,4 @@ namespace physx
 } // namespace physx
 #endif
 
-/** @} */
 #endif

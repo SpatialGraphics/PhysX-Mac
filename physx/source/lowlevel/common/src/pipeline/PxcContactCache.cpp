@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -297,7 +297,7 @@ static PX_FORCE_INLINE PxReal maxComponentDeltaRot(const PxTransform& t0, const 
 }
 
 bool physx::PxcCacheLocalContacts(	PxcNpThreadContext& context, Cache& pairContactCache,
-									const PxTransform& tm0, const PxTransform& tm1,
+									const PxTransform32& tm0, const PxTransform32& tm1,
 									const PxcContactMethod conMethod,
 									const PxGeometry& shape0, const PxGeometry& shape1)
 {

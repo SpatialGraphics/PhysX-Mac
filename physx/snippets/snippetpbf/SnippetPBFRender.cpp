@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -78,15 +78,15 @@ void renderParticles()
 
 		PxScene* scene;
 		PxGetPhysics().getScenes(&scene, 1);
-		PxCudaContextManager* cudaContexManager = scene->getCudaContextManager();
+		PxCudaContextManager* cudaContextManager = scene->getCudaContextManager();
 
-		cudaContexManager->acquireContext();
+		cudaContextManager->acquireContext();
 
-		PxCudaContext* cudaContext = cudaContexManager->getCudaContext();
+		PxCudaContext* cudaContext = cudaContextManager->getCudaContext();
 		cudaContext->memcpyDtoH(sPosBuffer.map(), CUdeviceptr(positions), sizeof(PxVec4) * numParticles);
 		cudaContext->memcpyDtoH(sDiffusePosLifeBuffer.map(), CUdeviceptr(diffusePositions), sizeof(PxVec4) * numDiffuseParticles);
 
-		cudaContexManager->releaseContext();
+		cudaContextManager->releaseContext();
 
 #if SHOW_SOLID_SDF_SLICE
 		particleSystem->copySparseGridData(sSparseGridSolidSDFBufferD, PxSparseGridDataFlag::eGRIDCELL_SOLID_GRADIENT_AND_SDF);
@@ -99,15 +99,17 @@ void renderParticles()
 	Snippets::DrawPoints(sPosBuffer.vbo, sPosBuffer.size / sizeof(PxVec4), color, 2.f);
 
 	PxParticleAndDiffuseBuffer* userBuffer = getParticleBuffer();
-
-	const PxU32 numActiveDiffuseParticles = userBuffer->getNbActiveDiffuseParticles();
-
-	//printf("NumActiveDiffuse = %i\n", numActiveDiffuseParticles);
-
-	if (numActiveDiffuseParticles > 0)
+	if (userBuffer)
 	{
-		PxVec3 colorDiffuseParticles(1, 1, 1);
-		Snippets::DrawPoints(sDiffusePosLifeBuffer.vbo, numActiveDiffuseParticles, colorDiffuseParticles, 2.f);
+		const PxU32 numActiveDiffuseParticles = userBuffer->getNbActiveDiffuseParticles();
+
+		//printf("NumActiveDiffuse = %i\n", numActiveDiffuseParticles);
+
+		if (numActiveDiffuseParticles > 0)
+		{
+			PxVec3 colorDiffuseParticles(1, 1, 1);
+			Snippets::DrawPoints(sDiffusePosLifeBuffer.vbo, numActiveDiffuseParticles, colorDiffuseParticles, 2.f);
+		}
 	}
 	
 	Snippets::DrawFrame(PxVec3(0, 0, 0));
@@ -117,18 +119,20 @@ void allocParticleBuffers()
 {
 	PxScene* scene;
 	PxGetPhysics().getScenes(&scene, 1);
-	PxCudaContextManager* cudaContexManager = scene->getCudaContextManager();
+	PxCudaContextManager* cudaContextManager = scene->getCudaContextManager();
+	if (cudaContextManager)
+	{
+		PxParticleAndDiffuseBuffer* userBuffer = getParticleBuffer();
 
-	PxParticleAndDiffuseBuffer* userBuffer = getParticleBuffer();
+		const PxU32 maxParticles = userBuffer->getMaxParticles();
+		const PxU32 maxDiffuseParticles = userBuffer->getMaxDiffuseParticles();
 
-	const PxU32 maxParticles = userBuffer->getMaxParticles();
-	const PxU32 maxDiffuseParticles = userBuffer->getMaxDiffuseParticles();
-
-	sDiffusePosLifeBuffer.initialize(cudaContexManager);
-	sDiffusePosLifeBuffer.allocate(maxDiffuseParticles * sizeof(PxVec4));
+		sDiffusePosLifeBuffer.initialize(cudaContextManager);
+		sDiffusePosLifeBuffer.allocate(maxDiffuseParticles * sizeof(PxVec4));
 	
-	sPosBuffer.initialize(cudaContexManager);
-	sPosBuffer.allocate(maxParticles * sizeof(PxVec4));
+		sPosBuffer.initialize(cudaContextManager);
+		sPosBuffer.allocate(maxParticles * sizeof(PxVec4));
+	}
 }
 
 void clearupParticleBuffers()
@@ -171,9 +175,6 @@ void cleanup()
 
 void exitCallback(void)
 {
-#if PX_WINDOWS
-	cleanup();
-#endif
 }
 }
 
@@ -190,8 +191,6 @@ void renderLoop()
 
 	glutMainLoop();
 
-#if PX_LINUX_FAMILY
 	cleanup();
-#endif
 }
 #endif

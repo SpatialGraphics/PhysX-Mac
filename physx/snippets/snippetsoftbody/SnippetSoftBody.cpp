@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -45,46 +45,45 @@ using namespace meshgenerator;
 
 static PxDefaultAllocator		gAllocator;
 static PxDefaultErrorCallback	gErrorCallback;
-static PxFoundation*			gFoundation		= NULL;
-static PxPhysics*				gPhysics		= NULL;
-static PxCudaContextManager*	gCudaContextManager = NULL;
-static PxDefaultCpuDispatcher*	gDispatcher		= NULL;
-static PxScene*					gScene			= NULL;
-static PxMaterial*				gMaterial		= NULL;
-static PxPvd*					gPvd			= NULL;
+static PxFoundation*			gFoundation			= NULL;
+static PxPhysics*				gPhysics			= NULL;
+static PxCudaContextManager*	gCudaContextManager	= NULL;
+static PxDefaultCpuDispatcher*	gDispatcher			= NULL;
+static PxScene*					gScene				= NULL;
+static PxMaterial*				gMaterial			= NULL;
+static PxPvd*					gPvd				= NULL;
 std::vector<SoftBody>			gSoftBodies;
 
-void addSoftBody(PxSoftBody* softBody, const PxFEMParameters& femParams, const PxFEMMaterial& /*femMaterial*/,
-	const PxTransform& transform, const PxReal density, const PxReal scale, const PxU32 iterCount/*, PxMaterial* tetMeshMaterial*/)
+void addSoftBody(PxSoftBody* softBody, const PxFEMParameters& femParams, const PxTransform& transform, const PxReal density, const PxReal scale, const PxU32 iterCount)
 {
-	PxShape* shape = softBody->getShape();
-	PxTetrahedronMeshGeometry tetMeshGeom;
-	shape->getTetrahedronMeshGeometry(tetMeshGeom);
-	PxTetrahedronMesh* colTetMesh = tetMeshGeom.tetrahedronMesh;
-	const PxU32 numVerts = colTetMesh->getNbVertices();
+	PxVec4* simPositionInvMassPinned;
+	PxVec4* simVelocityPinned;
+	PxVec4* collPositionInvMassPinned;
+	PxVec4* restPositionPinned;
 
-	PxBuffer* positionInvMassBuf = gPhysics->createBuffer(numVerts * sizeof(PxVec4), PxBufferType::eHOST, gCudaContextManager);
+	PxSoftBodyExt::allocateAndInitializeHostMirror(*softBody, gCudaContextManager, simPositionInvMassPinned, simVelocityPinned, collPositionInvMassPinned, restPositionPinned);
 	
 	const PxReal maxInvMassRatio = 50.f;
 
 	softBody->setParameter(femParams);
-	//softBody->setMaterial(femMaterial);
 	softBody->setSolverIterationCounts(iterCount);
 
-	PxSoftBodyExt::transform(*softBody, transform, scale);
-	PxSoftBodyExt::updateMass(*softBody, density, maxInvMassRatio);
-	PxSoftBodyExt::commit(*softBody, PxSoftBodyData::eALL);
+	PxSoftBodyExt::transform(*softBody, transform, scale, simPositionInvMassPinned, simVelocityPinned, collPositionInvMassPinned, restPositionPinned);
+	PxSoftBodyExt::updateMass(*softBody, density, maxInvMassRatio, simPositionInvMassPinned);
+	PxSoftBodyExt::copyToDevice(*softBody, PxSoftBodyDataFlag::eALL, simPositionInvMassPinned, simVelocityPinned, collPositionInvMassPinned, restPositionPinned);
 
-	SoftBody sBody(softBody, positionInvMassBuf);
+	SoftBody sBody(softBody, gCudaContextManager);
 
 	gSoftBodies.push_back(sBody);
+
+	PX_EXT_PINNED_MEMORY_FREE(*gCudaContextManager, simPositionInvMassPinned);
+	PX_EXT_PINNED_MEMORY_FREE(*gCudaContextManager, simVelocityPinned);
+	PX_EXT_PINNED_MEMORY_FREE(*gCudaContextManager, collPositionInvMassPinned);
+	PX_EXT_PINNED_MEMORY_FREE(*gCudaContextManager, restPositionPinned);
 }
 
 static PxSoftBody* createSoftBody(const PxCookingParams& params, const PxArray<PxVec3>& triVerts, const PxArray<PxU32>& triIndices, bool useCollisionMeshForSimulation = false)
 {
-	PxFEMSoftBodyMaterial* material = PxGetPhysics().createFEMSoftBodyMaterial(1e+6f, 0.45f, 0.5f);
-	material->setDamping(0.005f);
-
 	PxSoftBodyMesh* softBodyMesh;
 
 	PxU32 numVoxelsAlongLongestAABBAxis = 8;
@@ -115,7 +114,7 @@ static PxSoftBody* createSoftBody(const PxCookingParams& params, const PxArray<P
 	{
 		PxShapeFlags shapeFlags = PxShapeFlag::eVISUALIZATION | PxShapeFlag::eSCENE_QUERY_SHAPE | PxShapeFlag::eSIMULATION_SHAPE;
 
-		PxFEMSoftBodyMaterial* materialPtr = PxGetPhysics().createFEMSoftBodyMaterial(1e+6f, 0.45f, 0.5f);
+		PxFEMSoftBodyMaterial* materialPtr = PxGetPhysics().createFEMSoftBodyMaterial(2.e+5f, 0.3f, 0.1f);
 		PxTetrahedronMeshGeometry geometry(softBodyMesh->getCollisionMesh());
 		PxShape* shape = gPhysics->createShape(geometry, &materialPtr, 1, true, shapeFlags);
 		if (shape)
@@ -128,7 +127,7 @@ static PxSoftBody* createSoftBody(const PxCookingParams& params, const PxArray<P
 		gScene->addActor(*softBody);
 
 		PxFEMParameters femParams;
-		addSoftBody(softBody, femParams, *material, PxTransform(PxVec3(0.f, 0.f, 0.f), PxQuat(PxIdentity)), 100.f, 1.0f, 30);
+		addSoftBody(softBody, femParams, PxTransform(PxVec3(0.f, 0.f, 0.f), PxQuat(PxIdentity)), 100.f, 1.0f, 30);
 		softBody->setSoftBodyFlag(PxSoftBodyFlag::eDISABLE_SELF_COLLISION, true);
 	}
 	return softBody;
@@ -136,19 +135,25 @@ static PxSoftBody* createSoftBody(const PxCookingParams& params, const PxArray<P
 
 static void createSoftbodies(const PxCookingParams& params)
 {
+	if (gCudaContextManager == NULL)
+	{
+		printf("The Softbody feature is currently only supported on GPU\n");
+		return;
+	}
+
 	PxArray<PxVec3> triVerts;
 	PxArray<PxU32> triIndices;
 	
 	PxReal maxEdgeLength = 1;
 
-	createCube(triVerts, triIndices, PxVec3(0, 9, 0), 2.5);
+	createCube(triVerts, triIndices, PxVec3(0.0, 9, 0), 2.5);
 	PxRemeshingExt::limitMaxEdgeLength(triIndices, triVerts, maxEdgeLength);
-	createSoftBody(params, triVerts, triIndices, true);
+	createSoftBody(params, triVerts, triIndices);
 
 	createSphere(triVerts, triIndices, PxVec3(0, 4.5, 0), 2.5, maxEdgeLength);
 	createSoftBody(params, triVerts, triIndices);
 
-	createConeY(triVerts, triIndices, PxVec3(0, 11.5, 0), 2.0f, 3.5);
+	createConeY(triVerts, triIndices, PxVec3(0.1, 11.5, 0), 2.0f, 3.5);
 	PxRemeshingExt::limitMaxEdgeLength(triIndices, triVerts, maxEdgeLength);
 	createSoftBody(params, triVerts, triIndices);
 }
@@ -165,8 +170,7 @@ void initPhysics(bool /*interactive*/)
 	gCudaContextManager = PxCreateCudaContextManager(*gFoundation, cudaContextManagerDesc, PxGetProfilerCallback());
 	if (gCudaContextManager && !gCudaContextManager->contextIsValid())
 	{
-		gCudaContextManager->release();
-		gCudaContextManager = NULL;
+		PX_RELEASE(gCudaContextManager);
 		printf("Failed to initialize cuda context.\n");
 	}
 
@@ -193,9 +197,7 @@ void initPhysics(bool /*interactive*/)
 	gDispatcher = PxDefaultCpuDispatcherCreate(numCores == 0 ? 0 : numCores - 1);
 	sceneDesc.cpuDispatcher	= gDispatcher;
 	sceneDesc.filterShader	= PxDefaultSimulationFilterShader;
-	sceneDesc.flags |= PxSceneFlag::eENABLE_ACTIVE_ACTORS;
 
-	sceneDesc.sceneQueryUpdateMode = PxSceneQueryUpdateMode::eBUILD_ENABLED_COMMIT_DISABLED;
 	sceneDesc.broadPhaseType = PxBroadPhaseType::eGPU;
 	sceneDesc.gpuMaxNumPartitions = 8;
 
@@ -237,17 +239,22 @@ void cleanupPhysics(bool /*interactive*/)
 	for (PxU32 i = 0; i < gSoftBodies.size(); i++)
 		gSoftBodies[i].release();
 	gSoftBodies.clear();
+
 	PX_RELEASE(gScene);
 	PX_RELEASE(gDispatcher);
 	PX_RELEASE(gPhysics);
-	PxPvdTransport* transport = gPvd->getTransport();
-	gPvd->release();
-	transport->release();
-	PxCloseExtensions();  
-	gCudaContextManager->release();
+	if (gPvd)
+	{
+		PxPvdTransport* transport = gPvd->getTransport();
+		PX_RELEASE(gPvd);
+		PX_RELEASE(transport);
+	}
+	PxCloseExtensions();
+
+	PX_RELEASE(gCudaContextManager);
 	PX_RELEASE(gFoundation);
 
-	printf("Snippet Softbody done.\n");
+	printf("SnippetSoftBody done.\n");
 }
 
 int snippetMain(int, const char*const*)

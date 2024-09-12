@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -30,130 +30,30 @@
 #define DY_SOLVER_CONTROL_H
 
 #include "DySolverCore.h"
-#include "DySolverConstraintDesc.h"
 
 namespace physx
 {
-
 namespace Dy
 {
-
-struct FsData;
-
-inline void BusyWaitState(volatile PxU32* state, const PxU32 requiredState)
-{
-	while(requiredState != *state );
-}
-
-inline void WaitBodyRequiredState(PxU32* state, const PxU32 requiredState)
-{
-	if(*state != requiredState)
+	// PT: TODO: these "solver core" classes are mostly stateless, at this point they could just be function pointers like the solve methods.
+	class SolverCoreGeneral : public SolverCore
 	{
-		BusyWaitState(state, requiredState);
-	}
+	public:
+		bool mFrictionEveryIteration;
+		SolverCoreGeneral(bool fricEveryIteration) : mFrictionEveryIteration(fricEveryIteration)	{}
+
+		// SolverCore
+		virtual void solveVParallelAndWriteBack(SolverIslandParams& params, Cm::SpatialVectorF* deltaV, Dy::ErrorAccumulatorEx* errorAccumulator) const	PX_OVERRIDE	PX_FINAL;
+
+		virtual void solveV_Blocks(SolverIslandParams& params) const	PX_OVERRIDE	PX_FINAL;
+		//~SolverCore
+	};
+
+	// PT: TODO: we use "extern" instead of functions for TGS. Unify.
+	SolveBlockMethod* getSolveBlockTable();
+	SolveBlockMethod* getSolverConcludeBlockTable();
+	SolveWriteBackBlockMethod* getSolveWritebackBlockTable();
 }
-
-inline void BusyWaitStates(volatile PxU32* stateA, volatile PxU32* stateB, const PxU32 requiredStateA, const PxU32 requiredStateB)
-{
-	while(*stateA != requiredStateA);
-	while(*stateB != requiredStateB);
-}
-
-
-class BatchIterator
-{
-public:
-	PxConstraintBatchHeader* constraintBatchHeaders;
-	PxU32 mSize;
-	PxU32 mCurrentIndex;
-
-	BatchIterator(PxConstraintBatchHeader* _constraintBatchHeaders, PxU32 size) : constraintBatchHeaders(_constraintBatchHeaders),
-		mSize(size), mCurrentIndex(0)
-	{
-	}
-
-	PX_FORCE_INLINE const PxConstraintBatchHeader& GetCurrentHeader(const PxU32 constraintIndex)
-	{
-		PxU32 currentIndex = mCurrentIndex;
-		while((constraintIndex - constraintBatchHeaders[currentIndex].startIndex) >= constraintBatchHeaders[currentIndex].stride)
-			currentIndex = (currentIndex + 1)%mSize;
-		PxPrefetchLine(&constraintBatchHeaders[currentIndex], 128);
-		mCurrentIndex = currentIndex;
-		return constraintBatchHeaders[currentIndex];
-	}
-private:
-	BatchIterator& operator=(const BatchIterator&);
-};
-
-
-inline void SolveBlockParallel	(PxSolverConstraintDesc* PX_RESTRICT constraintList, const PxI32 batchCount, const PxI32 index,  
-						 const PxI32 headerCount, SolverContext& cache, BatchIterator& iterator,
-						 SolveBlockMethod solveTable[],
-						 const PxI32 iteration
-						)
-{
-	const PxI32 indA = index - (iteration * headerCount);
-
-	const PxConstraintBatchHeader* PX_RESTRICT headers = iterator.constraintBatchHeaders;
-
-	const PxI32 endIndex = indA + batchCount;
-	for(PxI32 i = indA; i < endIndex; ++i)
-	{
-		const PxConstraintBatchHeader& header = headers[i];
-
-		const PxI32 numToGrab = header.stride;
-		PxSolverConstraintDesc* PX_RESTRICT block = &constraintList[header.startIndex];
-
-		PxPrefetch(block[0].constraint, 384);
-
-		for(PxI32 b = 0; b < numToGrab; ++b)
-		{
-			PxPrefetchLine(block[b].bodyA);
-			PxPrefetchLine(block[b].bodyB);
-		}
-
-		//OK. We have a number of constraints to run...
-		solveTable[header.constraintType](block, PxU32(numToGrab), cache);
-	}
-}
-
-class SolverCoreGeneral : public SolverCore
-{
-public:
-	bool frictionEveryIteration;
-	static SolverCoreGeneral* create(bool fricEveryIteration);
-
-	// Implements SolverCore
-	virtual void destroyV();
-
-	virtual PxI32 solveVParallelAndWriteBack
-		(SolverIslandParams& params, Cm::SpatialVectorF* Z, Cm::SpatialVectorF* deltaV) const;
-
-	virtual void solveV_Blocks
-		(SolverIslandParams& params) const;
-
-	virtual void writeBackV
-		(const PxSolverConstraintDesc* PX_RESTRICT constraintList, const PxU32 constraintListSize, PxConstraintBatchHeader* contactConstraintBatches, const PxU32 numBatches,
-		 ThresholdStreamElement* PX_RESTRICT thresholdStream, const PxU32 thresholdStreamLength, PxU32& outThresholdPairs,
-		 PxSolverBodyData* atomListData, WriteBackBlockMethod writeBackTable[]) const;
-
-private:
-
-	//~Implements SolverCore
-};
-
-#define SOLVEV_BLOCK_METHOD_ARGS	SolverCore*	solverCore, SolverIslandParams& params
-
-void solveVBlock(SOLVEV_BLOCK_METHOD_ARGS);
-
-SolveBlockMethod* getSolveBlockTable();
-
-SolveBlockMethod* getSolverConcludeBlockTable();
-
-SolveWriteBackBlockMethod* getSolveWritebackBlockTable();
-
-}
-
 }
 
 #endif

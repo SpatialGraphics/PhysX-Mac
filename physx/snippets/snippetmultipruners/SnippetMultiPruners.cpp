@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -83,7 +83,7 @@ using namespace physx;
 #endif
 
 // Number of frames to simulate, only used when gEnableRendering == false
-static const PxU32 gNbFramesToSimulate = 256;
+static const PxU32 gNbFramesToSimulate = 100;
 
 // The PhysX tree rebuild rate hint. It is usually a *bad idea* to decrease it to 10 (the default
 // value is 100), but people do this, and it puts more stress on the build code, which fits the
@@ -425,8 +425,7 @@ void Streamer::addRegion(StreamRegion& region)
 			PxShape* shape;
 			regionData->mObjects[i]->getShapes(&shape, 1);
 
-			PxBoxGeometry boxGeom;
-			shape->getBoxGeometry(boxGeom);
+			const PxBoxGeometry& boxGeom = static_cast<const PxBoxGeometry&>(shape->getGeometry());
 
 			const PxVec3 minimum = c - boxGeom.halfExtents;
 			const PxVec3 maximum = c + boxGeom.halfExtents;
@@ -843,7 +842,7 @@ void cleanupPhysics(bool /*interactive*/)
 	if(gPvd)
 	{
 		PxPvdTransport* transport = gPvd->getTransport();
-		gPvd->release();	gPvd = NULL;
+		PX_RELEASE(gPvd);
 		PX_RELEASE(transport);
 	}
 	PX_RELEASE(gFoundation);

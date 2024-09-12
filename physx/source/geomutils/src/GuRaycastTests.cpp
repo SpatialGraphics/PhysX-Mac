@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -600,22 +600,6 @@ PxU32 raycast_heightField(GU_RAY_FUNC_PARAMS)
 	return callback.mNbHits;
 }
 
-static PxU32 raycast_heightField_unregistered(GU_RAY_FUNC_PARAMS)
-{
-	PX_UNUSED(threadContext);
-	PX_UNUSED(stride);
-	PX_UNUSED(geom);
-	PX_UNUSED(pose);
-	PX_UNUSED(rayOrigin);
-	PX_UNUSED(rayDir);
-	PX_UNUSED(maxDist);
-	PX_UNUSED(hitFlags);
-	PX_UNUSED(maxHits);
-	PX_UNUSED(hits);
-	PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, PX_FL, "Height Field Raycast test called with height fields unregistered ");
-	return 0;
-}
-
 static PxU32 raycast_custom(GU_RAY_FUNC_PARAMS)
 {
 	const PxCustomGeometry& customGeom = static_cast<const PxCustomGeometry&>(geom);
@@ -637,7 +621,7 @@ RaycastFunc gRaycastMap[] =
 	raycast_particlesystem,
 	raycast_softbody,
 	raycast_triangleMesh,	
-	raycast_heightField_unregistered,
+	raycast_heightField,
 	raycast_hairsystem,
 	raycast_custom
 };
@@ -649,7 +633,3 @@ const Gu::GeomRaycastTable& Gu::getRaycastFuncTable()
 	return gRaycastMap;
 }
 
-void registerHeightFields_Raycasts()
-{
-	gRaycastMap[PxGeometryType::eHEIGHTFIELD] = raycast_heightField;
-}

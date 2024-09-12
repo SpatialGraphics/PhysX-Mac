@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -45,7 +45,7 @@ NpFEMClothMaterial::NpFEMClothMaterial(const PxsFEMClothMaterialCore& desc) :
 
 NpFEMClothMaterial::~NpFEMClothMaterial()
 {
-	NpPhysics::getInstance().removeFEMClothMaterialFromTable(*this);
+	NpPhysics::getInstance().removeMaterialFromTable(*this);
 }
 
 // PX_SERIALIZATION
@@ -103,7 +103,7 @@ PxU32 NpFEMClothMaterial::getReferenceCount() const
 
 PX_INLINE void NpFEMClothMaterial::updateMaterial()
 {
-	NpPhysics::getInstance().updateFEMClothMaterial(*this);
+	NpPhysics::getInstance().updateMaterial(*this);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -167,37 +167,7 @@ PxReal NpFEMClothMaterial::getThickness() const
 	return mMaterial.thickness;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-
-void NpFEMClothMaterial::setElasticityDamping(PxReal x)
-{
-	PX_CHECK_AND_RETURN(PxIsFinite(x), "PxFEMClothMaterial::setElasticityDamping: invalid float");
-
-	mMaterial.elasticityDamping = x;
-
-	updateMaterial();
-}
-
-PxReal NpFEMClothMaterial::getElasticityDamping() const
-{
-	return mMaterial.elasticityDamping;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
-void NpFEMClothMaterial::setBendingDamping(PxReal x)
-{
-	PX_CHECK_AND_RETURN(PxIsFinite(x), "PxFEMClothMaterial::setBendingDamping: invalid float");
-
-	mMaterial.bendingDamping = x;
-
-	updateMaterial();
-}
-
-PxReal NpFEMClothMaterial::getBendingDamping() const
-{
-	return mMaterial.bendingDamping;
-}
+//////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
 #endif

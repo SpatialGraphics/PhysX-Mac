@@ -22,15 +22,12 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_VEHICLE_SUSP_WHEEL_TIRE4_H
 #define PX_VEHICLE_SUSP_WHEEL_TIRE4_H
-/** \addtogroup vehicle
-  @{
-*/
 
 #include "foundation/PxSimpleTypes.h"
 #include "foundation/PxVec3.h"
@@ -52,12 +49,6 @@ class PxShape;
 
 class PxVehicleWheels4SimData
 {
-//= ATTENTION! =====================================================================================
-// Changing the data layout of this class breaks the binary serialization format.  See comments for 
-// PX_BINARY_SERIAL_VERSION.  If a modification is required, please adjust the getBinaryMetaData 
-// function.  If the modification is made on a custom branch, please change PX_BINARY_SERIAL_VERSION
-// accordingly.
-//==================================================================================================
 public:
 
 	friend class PxVehicleUpdate;
@@ -96,19 +87,19 @@ private:
 
 	/**
 	\brief Suspension simulation data
-	@see setSuspensionData, getSuspensionData
+	\see setSuspensionData, getSuspensionData
 	*/
 	PxVehicleSuspensionData			mSuspensions[4];
 
 	/**
 	\brief Wheel simulation data
-	@see setWheelData, getWheelData
+	\see setWheelData, getWheelData
 	*/
 	PxVehicleWheelData				mWheels[4];
 
 	/**
 	\brief Tire simulation data
-	@see setTireData, getTireData
+	\see setTireData, getTireData
 	*/
 	PxVehicleTireData				mTires[4];
 
@@ -165,12 +156,6 @@ PX_COMPILE_TIME_ASSERT(0 == (sizeof(PxVehicleWheels4SimData) & 15));
 
 class PxVehicleWheels4DynData
 {
-//= ATTENTION! =====================================================================================
-// Changing the data layout of this class breaks the binary serialization format.  See comments for 
-// PX_BINARY_SERIAL_VERSION.  If a modification is required, please adjust the getBinaryMetaData 
-// function.  If the modification is made on a custom branch, please change PX_BINARY_SERIAL_VERSION
-// accordingly.
-//==================================================================================================
 public:
 
 	friend class PxVehicleUpdate;
@@ -243,7 +228,7 @@ public:
 
 	/**
 	\brief Rotation speeds of wheels 
-	@see PxVehicle4WSetToRestState, PxVehicle4WGetWheelRotationSpeed, PxVehicle4WGetEngineRotationSpeed
+	\see PxVehicle4WSetToRestState, PxVehicle4WGetWheelRotationSpeed, PxVehicle4WGetEngineRotationSpeed
 	*/	
 	PxReal mWheelSpeeds[4];
 
@@ -254,7 +239,7 @@ public:
 
 	/**
 	\brief Reported rotation angle about rolling axis.
-	@see PxVehicle4WSetToRestState, PxVehicle4WGetWheelRotationAngle
+	\see PxVehicle4WSetToRestState, PxVehicle4WGetWheelRotationAngle
 	*/	
 	PxReal mWheelRotationAngles[4];
 
@@ -286,25 +271,25 @@ public:
 	{
 		/**
 		\brief Geometry suspension line sweep used in most recent scene query.
-		@see PxVehicleSuspensionSweeps
+		\see PxVehicleSuspensionSweeps
 		*/
 		PxGeometryHolder mGometries[4];
 
 		/**
 		\brief Start poses of suspension line sweep used in most recent scene query.
-		@see PxVehicleSuspensionSweeps 
+		\see PxVehicleSuspensionSweeps 
 		*/
 		PxTransform mStartPose[4];
 
 		/**
 		\brief Directions of suspension line sweeps used in most recent scene query.
-		@see PxVehicleSuspensionSweeps
+		\see PxVehicleSuspensionSweeps
 		*/
 		PxVec3 mDirs[4];
 
 		/**
 		\brief Lengths of suspension line sweeps used in most recent scene query.
-		@see PxVehicleSuspensionSweeps
+		\see PxVehicleSuspensionSweeps
 		*/
 		PxReal mLengths[4];
 	};
@@ -313,19 +298,19 @@ public:
 	{
 		/**
 		\brief Start point of suspension line raycasts used in most recent scene query.
-		@see PxVehicleSuspensionRaycasts 
+		\see PxVehicleSuspensionRaycasts 
 		*/
 		PxVec3 mStarts[4];
 
 		/**
 		\brief Directions of suspension line raycasts used in most recent scene query.
-		@see PxVehicleSuspensionRaycasts
+		\see PxVehicleSuspensionRaycasts
 		*/
 		PxVec3 mDirs[4];
 
 		/**
 		\brief Lengths of suspension line raycasts used in most recent scene query.
-		@see PxVehicleSuspensionRaycasts
+		\see PxVehicleSuspensionRaycasts
 		*/
 		PxReal mLengths[4];
 
@@ -336,13 +321,13 @@ public:
 	{
 		/**
 		\brief Cached raycast hit planes. These are the planes found from the last scene queries.
-		@see PxVehicleSuspensionRaycasts, PxVehicleSuspensionSweeps
+		\see PxVehicleSuspensionRaycasts, PxVehicleSuspensionSweeps
 		*/
 		PxPlane mPlanes[4];
 
 		/**
 		\brief Cached friction.
-		@see PxVehicleSuspensionRaycasts, PxVehicleSuspensionSweeps
+		\see PxVehicleSuspensionRaycasts, PxVehicleSuspensionSweeps
 		*/
 		PxF32 mFrictionMultipliers[4];
 
@@ -353,7 +338,7 @@ public:
 
 		/**
 		\brief Cached raycast hit counts. These are the hit counts found from the last scene queries.
-		@see PxVehicleSuspensionRaycasts, , PxVehicleSuspensionSweeps
+		\see PxVehicleSuspensionRaycasts, , PxVehicleSuspensionSweeps
 		*/
 		PxU16 mCounts[4];
 
@@ -385,13 +370,13 @@ public:
 
 	/**
 	\brief Set by PxVehicleSuspensionRaycasts
-	@see PxVehicleSuspensionRaycasts
+	\see PxVehicleSuspensionRaycasts
 	*/
 	const PxRaycastBuffer* mRaycastResults;
 
 	/**
 	\brief Set by PxVehicleSuspensionSweeps
-	@see PxVehicleSuspensionSweeps
+	\see PxVehicleSuspensionSweeps
 	*/
 	const PxSweepBuffer* mSweepResults;
 
@@ -416,5 +401,4 @@ PX_COMPILE_TIME_ASSERT(sizeof(PxVehicleWheels4DynData::CachedSuspLineSceneQueryt
 } // namespace physx
 #endif
 
-/** @} */
 #endif

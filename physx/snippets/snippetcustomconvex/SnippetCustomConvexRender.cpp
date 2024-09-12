@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -96,9 +96,9 @@ RenderMesh* createRenderCylinder(float height, float radius, float margin)
 {
 	struct InternalRenderHelper
 	{
-		InternalRenderHelper(float height, float radius, float margin)
+		InternalRenderHelper(float height_, float radius_, float margin_)
 			:
-			height(height), radius(radius), margin(margin)
+			height(height_), radius(radius_), margin(margin_)
 		{
 			mesh = new RenderMesh();
 			halfHeight = height * 0.5f;
@@ -209,9 +209,9 @@ RenderMesh* createRenderCone(float height, float radius, float margin)
 {
 	struct InternalRenderHelper
 	{
-		InternalRenderHelper(float height, float radius, float margin)
+		InternalRenderHelper(float height_, float radius_, float margin_)
 			:
-			height(height), radius(radius), margin(margin)
+			height(height_), radius(radius_), margin(margin_)
 		{
 			mesh = new RenderMesh();
 

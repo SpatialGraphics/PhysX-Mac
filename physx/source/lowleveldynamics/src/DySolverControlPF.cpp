@@ -22,195 +22,136 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #include "foundation/PxPreprocessor.h"
-#include "foundation/PxAllocator.h"
 #include "foundation/PxAtomic.h"
-#include "foundation/PxIntrinsics.h"
-#include <new>
-#include <stdio.h>
 #include "DySolverBody.h"
-#include "DySolverConstraint1D.h"
-#include "DySolverContact.h"
 #include "DyThresholdTable.h"
 #include "DySolverControl.h"
 #include "DyArticulationPImpl.h"
-#include "foundation/PxThread.h"
-#include "DySolverConstraintDesc.h"
 #include "DySolverContext.h"
 #include "DySolverControlPF.h"
-#include "DyFeatherstoneArticulation.h"
+#include "DyCpuGpuArticulation.h"
 
 namespace physx
 {
-
 namespace Dy
 {
-//-----------------------------------
+void solve1DBlock		(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveExt1DBlock	(DY_PGS_SOLVE_METHOD_PARAMS);
+void solve1D4_Block		(DY_PGS_SOLVE_METHOD_PARAMS);
 
-void solve1DBlock					(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveExt1DBlock				(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solve1D4_Block					(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
+void solve1DConcludeBlock		(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveExt1DConcludeBlock	(DY_PGS_SOLVE_METHOD_PARAMS);
+void solve1D4Block_Conclude		(DY_PGS_SOLVE_METHOD_PARAMS);
 
+void solve1DBlockWriteBack		(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveExt1DBlockWriteBack	(DY_PGS_SOLVE_METHOD_PARAMS);
+void solve1D4Block_WriteBack	(DY_PGS_SOLVE_METHOD_PARAMS);
 
-void solve1DConcludeBlock				(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveExt1DConcludeBlock			(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solve1D4Block_Conclude				(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
+void writeBack1DBlock		(DY_PGS_SOLVE_METHOD_PARAMS);
+void ext1DBlockWriteBack	(DY_PGS_SOLVE_METHOD_PARAMS);
+void writeBack1D4Block		(DY_PGS_SOLVE_METHOD_PARAMS);
 
-void solve1DBlockWriteBack				(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveExt1DBlockWriteBack			(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solve1D4Block_WriteBack			(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
+void solveFrictionBlock					(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveFriction_BStaticBlock			(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveExtFrictionBlock				(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveContactCoulombBlock			(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveExtContactCoulombBlock		(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveContactCoulomb_BStaticBlock	(DY_PGS_SOLVE_METHOD_PARAMS);
 
-void writeBack1DBlock				(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void ext1DBlockWriteBack			(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void writeBack1D4Block				(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
+void solveContactCoulombConcludeBlock			(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveExtContactCoulombConcludeBlock		(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveContactCoulomb_BStaticConcludeBlock	(DY_PGS_SOLVE_METHOD_PARAMS);
 
-
-void solveFrictionBlock					(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveFriction_BStaticBlock			(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveExtFrictionBlock				(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveContactCoulombBlock			(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveExtContactCoulombBlock		(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveContactCoulomb_BStaticBlock	(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-
-
-void solveContactCoulombConcludeBlock			(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveExtContactCoulombConcludeBlock		(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveContactCoulomb_BStaticConcludeBlock	(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-
-void solveContactCoulombBlockWriteBack			(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveExtContactCoulombBlockWriteBack		(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveContactCoulomb_BStaticBlockWriteBack	(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveFrictionBlockWriteBack				(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveFriction_BStaticBlockWriteBack		(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveExtFrictionBlockWriteBack				(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
+void solveContactCoulombBlockWriteBack			(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveExtContactCoulombBlockWriteBack		(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveContactCoulomb_BStaticBlockWriteBack	(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveFrictionBlockWriteBack				(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveFriction_BStaticBlockWriteBack		(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveExtFrictionBlockWriteBack				(DY_PGS_SOLVE_METHOD_PARAMS);
 
 //Pre-block 1d/2d friction stuff...
 
-void solveContactCoulombPreBlock				(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveContactCoulombPreBlock_Static			(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveContactCoulombPreBlock_Conclude		(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveContactCoulombPreBlock_ConcludeStatic	(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveContactCoulombPreBlock_WriteBack		(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveContactCoulombPreBlock_WriteBackStatic(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveFrictionCoulombPreBlock				(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
+void solveContactCoulombPreBlock				(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveContactCoulombPreBlock_Static			(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveContactCoulombPreBlock_Conclude		(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveContactCoulombPreBlock_ConcludeStatic	(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveContactCoulombPreBlock_WriteBack		(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveContactCoulombPreBlock_WriteBackStatic(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveFrictionCoulombPreBlock				(DY_PGS_SOLVE_METHOD_PARAMS);
 
-void solveFrictionCoulombPreBlock_Static		(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveFrictionCoulombPreBlock_Conclude		(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-void solveFrictionCoulombPreBlock_ConcludeStatic(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
+void solveFrictionCoulombPreBlock_Static		(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveFrictionCoulombPreBlock_Conclude		(DY_PGS_SOLVE_METHOD_PARAMS);
+void solveFrictionCoulombPreBlock_ConcludeStatic(DY_PGS_SOLVE_METHOD_PARAMS);
 
-void solveFrictionCoulombPreBlock_WriteBack		(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
+void solveFrictionCoulombPreBlock_WriteBack		(DY_PGS_SOLVE_METHOD_PARAMS);
 
-void solveFrictionCoulombPreBlock_WriteBackStatic(const PxSolverConstraintDesc* PX_RESTRICT desc, const PxU32 constraintCount, SolverContext& cache);
-
-
-// could move this to PxPreprocessor.h but 
-// no implementation available for MSVC
-#if PX_GCC_FAMILY
-#define PX_UNUSED_ATTRIBUTE __attribute__((unused))
-#else
-#define PX_UNUSED_ATTRIBUTE 
-#endif
- 
-#define DYNAMIC_ARTICULATION_REGISTRATION(x) 0
-
+void solveFrictionCoulombPreBlock_WriteBackStatic(DY_PGS_SOLVE_METHOD_PARAMS);
 
 static SolveBlockMethod gVTableSolveBlockCoulomb[] PX_UNUSED_ATTRIBUTE = 
 {
 	0,
-	solveContactCoulombBlock,												// DY_SC_TYPE_RB_CONTACT
-	solve1DBlock,															// DY_SC_TYPE_RB_1D
-	DYNAMIC_ARTICULATION_REGISTRATION(solveExtContactCoulombBlock),			// DY_SC_TYPE_EXT_CONTACT
-	DYNAMIC_ARTICULATION_REGISTRATION(solveExt1DBlock),						// DY_SC_TYPE_EXT_1D
-	solveContactCoulomb_BStaticBlock,										// DY_SC_TYPE_STATIC_CONTACT
-	solveContactCoulombBlock,												// DY_SC_TYPE_NOFRICTION_RB_CONTACT
-	solveContactCoulombPreBlock,											// DY_SC_TYPE_BLOCK_RB_CONTACT
-	solveContactCoulombPreBlock_Static,										// DY_SC_TYPE_BLOCK_STATIC_RB_CONTACT
-	solve1D4_Block,															// DY_SC_TYPE_BLOCK_1D,
-	solveFrictionBlock,														// DY_SC_TYPE_FRICTION_CONSTRAINT
-	solveFriction_BStaticBlock,												// DY_SC_TYPE_STATIC_FRICTION_CONSTRAINT
-	DYNAMIC_ARTICULATION_REGISTRATION(solveExtFrictionBlock),				// DY_SC_TYPE_EXT_FRICTION_CONSTRAINT
-	solveFrictionCoulombPreBlock,											// DY_SC_TYPE_BLOCK_FRICTION					
-	solveFrictionCoulombPreBlock_Static										// DY_SC_TYPE_BLOCK_STATIC_FRICTION
+	solveContactCoulombBlock,				// DY_SC_TYPE_RB_CONTACT
+	solve1DBlock,							// DY_SC_TYPE_RB_1D
+	solveExtContactCoulombBlock,			// DY_SC_TYPE_EXT_CONTACT
+	solveExt1DBlock,						// DY_SC_TYPE_EXT_1D
+	solveContactCoulomb_BStaticBlock,		// DY_SC_TYPE_STATIC_CONTACT
+	solveContactCoulombPreBlock,			// DY_SC_TYPE_BLOCK_RB_CONTACT
+	solveContactCoulombPreBlock_Static,		// DY_SC_TYPE_BLOCK_STATIC_RB_CONTACT
+	solve1D4_Block,							// DY_SC_TYPE_BLOCK_1D,
+	solveFrictionBlock,						// DY_SC_TYPE_FRICTION
+	solveFriction_BStaticBlock,				// DY_SC_TYPE_STATIC_FRICTION
+	solveExtFrictionBlock,					// DY_SC_TYPE_EXT_FRICTION
+	solveFrictionCoulombPreBlock,			// DY_SC_TYPE_BLOCK_FRICTION					
+	solveFrictionCoulombPreBlock_Static		// DY_SC_TYPE_BLOCK_STATIC_FRICTION
 };
 
 static SolveWriteBackBlockMethod gVTableSolveWriteBackBlockCoulomb[] PX_UNUSED_ATTRIBUTE = 
 {
 	0,
-	solveContactCoulombBlockWriteBack,												// DY_SC_TYPE_RB_CONTACT
-	solve1DBlockWriteBack,															// DY_SC_TYPE_RB_1D
-	DYNAMIC_ARTICULATION_REGISTRATION(solveExtContactCoulombBlockWriteBack),		// DY_SC_TYPE_EXT_CONTACT
-	DYNAMIC_ARTICULATION_REGISTRATION(solveExt1DBlockWriteBack),					// DY_SC_TYPE_EXT_1D
-	solveContactCoulomb_BStaticBlockWriteBack,										// DY_SC_TYPE_STATIC_CONTACT
-	solveContactCoulombBlockWriteBack,												// DY_SC_TYPE_NOFRICTION_RB_CONTACT
-	solveContactCoulombPreBlock_WriteBack,											// DY_SC_TYPE_BLOCK_RB_CONTACT
-	solveContactCoulombPreBlock_WriteBackStatic,									// DY_SC_TYPE_BLOCK_STATIC_RB_CONTACT
-	solve1D4Block_WriteBack,														// DY_SC_TYPE_BLOCK_1D,
-	solveFrictionBlockWriteBack,													// DY_SC_TYPE_FRICTION_CONSTRAINT
-	solveFriction_BStaticBlockWriteBack,											// DY_SC_TYPE_STATIC_FRICTION_CONSTRAINT
-	DYNAMIC_ARTICULATION_REGISTRATION(solveExtFrictionBlockWriteBack),				// DY_SC_TYPE_EXT_FRICTION_CONSTRAINT
-	solveFrictionCoulombPreBlock_WriteBack,											// DY_SC_TYPE_BLOCK_FRICTION
-	solveFrictionCoulombPreBlock_WriteBackStatic									// DY_SC_TYPE_BLOCK_STATIC_FRICTION
+	solveContactCoulombBlockWriteBack,				// DY_SC_TYPE_RB_CONTACT
+	solve1DBlockWriteBack,							// DY_SC_TYPE_RB_1D
+	solveExtContactCoulombBlockWriteBack,			// DY_SC_TYPE_EXT_CONTACT
+	solveExt1DBlockWriteBack,						// DY_SC_TYPE_EXT_1D
+	solveContactCoulomb_BStaticBlockWriteBack,		// DY_SC_TYPE_STATIC_CONTACT
+	solveContactCoulombPreBlock_WriteBack,			// DY_SC_TYPE_BLOCK_RB_CONTACT
+	solveContactCoulombPreBlock_WriteBackStatic,	// DY_SC_TYPE_BLOCK_STATIC_RB_CONTACT
+	solve1D4Block_WriteBack,						// DY_SC_TYPE_BLOCK_1D,
+	solveFrictionBlockWriteBack,					// DY_SC_TYPE_FRICTION
+	solveFriction_BStaticBlockWriteBack,			// DY_SC_TYPE_STATIC_FRICTION
+	solveExtFrictionBlockWriteBack,					// DY_SC_TYPE_EXT_FRICTION
+	solveFrictionCoulombPreBlock_WriteBack,			// DY_SC_TYPE_BLOCK_FRICTION
+	solveFrictionCoulombPreBlock_WriteBackStatic	// DY_SC_TYPE_BLOCK_STATIC_FRICTION
 };
-
 
 static SolveBlockMethod gVTableSolveConcludeBlockCoulomb[] PX_UNUSED_ATTRIBUTE = 
 {
 	0,
-	solveContactCoulombConcludeBlock,												// DY_SC_TYPE_RB_CONTACT
-	solve1DConcludeBlock,															// DY_SC_TYPE_RB_1D
-	DYNAMIC_ARTICULATION_REGISTRATION(solveExtContactCoulombConcludeBlock),			// DY_SC_TYPE_EXT_CONTACT
-	DYNAMIC_ARTICULATION_REGISTRATION(solveExt1DConcludeBlock),						// DY_SC_TYPE_EXT_1D
-	solveContactCoulomb_BStaticConcludeBlock,										// DY_SC_TYPE_STATIC_CONTACT
-	solveContactCoulombConcludeBlock,												// DY_SC_TYPE_NOFRICTION_RB_CONTACT
-	solveContactCoulombPreBlock_Conclude,											// DY_SC_TYPE_BLOCK_RB_CONTACT
-	solveContactCoulombPreBlock_ConcludeStatic,										// DY_SC_TYPE_BLOCK_STATIC_RB_CONTACT
-	solve1D4Block_Conclude,															// DY_SC_TYPE_BLOCK_1D,
-	solveFrictionBlock,																// DY_SC_TYPE_FRICTION_CONSTRAINT
-	solveFriction_BStaticBlock,														// DY_SC_TYPE_STATIC_FRICTION_CONSTRAINT
-	DYNAMIC_ARTICULATION_REGISTRATION(solveExtFrictionBlock),						// DY_SC_TYPE_EXT_FRICTION_CONSTRAINT
-	solveFrictionCoulombPreBlock_Conclude,											// DY_SC_TYPE_BLOCK_FRICTION
-	solveFrictionCoulombPreBlock_ConcludeStatic										// DY_SC_TYPE_BLOCK_STATIC_FRICTION
+	solveContactCoulombConcludeBlock,				// DY_SC_TYPE_RB_CONTACT
+	solve1DConcludeBlock,							// DY_SC_TYPE_RB_1D
+	solveExtContactCoulombConcludeBlock,			// DY_SC_TYPE_EXT_CONTACT
+	solveExt1DConcludeBlock,						// DY_SC_TYPE_EXT_1D
+	solveContactCoulomb_BStaticConcludeBlock,		// DY_SC_TYPE_STATIC_CONTACT
+	solveContactCoulombPreBlock_Conclude,			// DY_SC_TYPE_BLOCK_RB_CONTACT
+	solveContactCoulombPreBlock_ConcludeStatic,		// DY_SC_TYPE_BLOCK_STATIC_RB_CONTACT
+	solve1D4Block_Conclude,							// DY_SC_TYPE_BLOCK_1D,
+	solveFrictionBlock,								// DY_SC_TYPE_FRICTION
+	solveFriction_BStaticBlock,						// DY_SC_TYPE_STATIC_FRICTION
+	solveExtFrictionBlock,							// DY_SC_TYPE_EXT_FRICTION
+	solveFrictionCoulombPreBlock_Conclude,			// DY_SC_TYPE_BLOCK_FRICTION
+	solveFrictionCoulombPreBlock_ConcludeStatic		// DY_SC_TYPE_BLOCK_STATIC_FRICTION
 };
-
-
-void SolverCoreRegisterArticulationFnsCoulomb()
-{
-	gVTableSolveBlockCoulomb[DY_SC_TYPE_EXT_CONTACT] = solveExtContactCoulombBlock;
-	gVTableSolveBlockCoulomb[DY_SC_TYPE_EXT_1D] = solveExt1DBlock;
-
-	gVTableSolveWriteBackBlockCoulomb[DY_SC_TYPE_EXT_CONTACT] = solveExtContactCoulombBlockWriteBack;
-	gVTableSolveWriteBackBlockCoulomb[DY_SC_TYPE_EXT_1D] = solveExt1DBlockWriteBack;
-	gVTableSolveConcludeBlockCoulomb[DY_SC_TYPE_EXT_CONTACT] = solveExtContactCoulombConcludeBlock;
-	gVTableSolveConcludeBlockCoulomb[DY_SC_TYPE_EXT_1D] = solveExt1DConcludeBlock;
-
-	gVTableSolveBlockCoulomb[DY_SC_TYPE_EXT_FRICTION] = solveExtFrictionBlock;
-	gVTableSolveWriteBackBlockCoulomb[DY_SC_TYPE_EXT_FRICTION] = solveExtFrictionBlockWriteBack;
-	gVTableSolveConcludeBlockCoulomb[DY_SC_TYPE_EXT_FRICTION] = solveExtFrictionBlock;
-}
-
-SolverCoreGeneralPF* SolverCoreGeneralPF::create()
-{
-	SolverCoreGeneralPF* scg = reinterpret_cast<SolverCoreGeneralPF*>(
-		PX_ALLOC(sizeof(SolverCoreGeneralPF), "SolverCoreGeneral"));
-
-	if(scg)
-		PX_PLACEMENT_NEW(scg, SolverCoreGeneralPF);
-
-	return scg;
-}
-
-void SolverCoreGeneralPF::destroyV()
-{
-	this->~SolverCoreGeneralPF();
-	PX_FREE_THIS;
-}
 
 void SolverCoreGeneralPF::solveV_Blocks(SolverIslandParams& params) const
 {
+	const PxF32 biasCoefficient = DY_ARTICULATION_PGS_BIAS_COEFFICIENT;
+	const bool isTGS = false;
+	const bool residualReportingActive = params.errorAccumulator != NULL;
+
 	const PxI32 TempThresholdStreamSize = 32;
 	ThresholdStreamElement tempThresholdStream[TempThresholdStreamSize];
 
@@ -221,11 +162,10 @@ void SolverCoreGeneralPF::solveV_Blocks(SolverIslandParams& params) const
 	cache.mThresholdStreamIndex		= 0;
 	cache.writeBackIteration		= false;
 	cache.deltaV					= params.deltaV;
-	cache.Z							= params.Z;
 
-	PxI32 batchCount = PxI32(params.numConstraintHeaders);
+	const PxI32 batchCount = PxI32(params.numConstraintHeaders);
 
-	PxSolverBody* PX_RESTRICT bodyListStart = params.bodyListStart;
+	const PxSolverBody* PX_RESTRICT bodyListStart = params.bodyListStart;
 	const PxU32 bodyListSize = params.bodyListSize;
 
 	Cm::SpatialVector* PX_RESTRICT motionVelocityArray = params.motionVelocityArray;
@@ -243,29 +183,9 @@ void SolverCoreGeneralPF::solveV_Blocks(SolverIslandParams& params) const
 
 	if(numConstraintHeaders == 0)
 	{
-		for (PxU32 baIdx = 0; baIdx < bodyListSize; baIdx++)
-		{
-			Cm::SpatialVector& motionVel = motionVelocityArray[baIdx];
-			PxSolverBody& atom = bodyListStart[baIdx];
-			motionVel.linear = atom.linearVelocity;
-			motionVel.angular = atom.angularState;
-		}
-
-		//Even thought there are no external constraints, there may still be internal constraints in the articulations...
-		for (PxU32 i = 0; i < positionIterations; ++i)
-			for (PxU32 j = 0; j < articulationListSize; ++j)
-				articulationListStart[j].articulation->solveInternalConstraints(params.dt, params.invDt, cache.Z, cache.deltaV, false, false, 0.f, 0.8f);
-
-		for (PxU32 i = 0; i < articulationListSize; i++)
-			ArticulationPImpl::saveVelocity(articulationListStart[i], cache.deltaV);
-
-		for (PxU32 i = 0; i < velocityIterations; ++i)
-			for (PxU32 j = 0; j < articulationListSize; ++j)
-				articulationListStart[j].articulation->solveInternalConstraints(params.dt, params.invDt, cache.Z, cache.deltaV, true, false, 0.f, 0.8f);
-
-		for (PxU32 j = 0; j < articulationListSize; ++j)
-			articulationListStart[j].articulation->writebackInternalConstraints(false);
-
+		solveNoContactsCase(bodyListSize, bodyListStart, motionVelocityArray,
+							articulationListSize, articulationListStart, cache.deltaV,
+							positionIterations, velocityIterations, params.dt, params.invDt, residualReportingActive);
 		return;
 	}
 
@@ -274,21 +194,22 @@ void SolverCoreGeneralPF::solveV_Blocks(SolverIslandParams& params) const
 
 	const PxI32 frictionBatchCount = PxI32(params.numFrictionConstraintHeaders);
 
-	PxSolverConstraintDesc* PX_RESTRICT constraintList = params.constraintList;
+	const PxSolverConstraintDesc* PX_RESTRICT constraintList = params.constraintList;
 
-	PxSolverConstraintDesc* PX_RESTRICT frictionConstraintList = params.frictionConstraintList;
+	const PxSolverConstraintDesc* PX_RESTRICT frictionConstraintList = params.frictionConstraintList;
 
 	//0-(n-1) iterations
 	PxI32 normalIter = 0;
 	PxI32 frictionIter = 0;
+	cache.contactErrorAccumulator = residualReportingActive ? &params.errorAccumulator->mPositionIterationErrorAccumulator : NULL;
+	cache.isPositionIteration = true;
 	for (PxU32 iteration = positionIterations; iteration > 0; iteration--)	//decreasing positive numbers == position iters
 	{
-
 		SolveBlockParallel(constraintList, batchCount, normalIter * batchCount, batchCount, 
 			cache, contactIterator, iteration == 1 ? gVTableSolveConcludeBlockCoulomb : gVTableSolveBlockCoulomb, normalIter);
 
 		for (PxU32 i = 0; i < articulationListSize; ++i)
-			articulationListStart[i].articulation->solveInternalConstraints(params.dt, params.invDt, cache.Z, cache.deltaV, false, false, 0.f, 0.8f);
+			articulationListStart[i].articulation->solveInternalConstraints(params.dt, params.invDt, false, isTGS, 0.f, biasCoefficient, residualReportingActive);
 
 		++normalIter;
 	}
@@ -304,28 +225,24 @@ void SolverCoreGeneralPF::solveV_Blocks(SolverIslandParams& params) const
 		}
 	}
 
-	for (PxU32 baIdx = 0; baIdx < bodyListSize; baIdx++)
-	{
-		const PxSolverBody& atom = bodyListStart[baIdx];
-		Cm::SpatialVector& motionVel = motionVelocityArray[baIdx];
-		motionVel.linear = atom.linearVelocity;
-		motionVel.angular = atom.angularState;
-	}
+	saveMotionVelocities(bodyListSize, bodyListStart, motionVelocityArray);
 	
 	for (PxU32 i = 0; i < articulationListSize; i++)
-		ArticulationPImpl::saveVelocity(articulationListStart[i], cache.deltaV);
+		ArticulationPImpl::saveVelocity(articulationListStart[i].articulation, cache.deltaV);
 
 	const PxU32 velItersMinOne = velocityIterations - 1;
 
 	PxU32 iteration = 0;
 
+	cache.contactErrorAccumulator = residualReportingActive ? &params.errorAccumulator->mVelocityIterationErrorAccumulator : NULL;
+	cache.isPositionIteration = false;
 	for(; iteration < velItersMinOne; ++iteration)
 	{	
 		SolveBlockParallel(constraintList, batchCount, normalIter * batchCount, batchCount, 
 			cache, contactIterator, gVTableSolveBlockCoulomb, normalIter);
 
 		for (PxU32 i = 0; i < articulationListSize; ++i)
-			articulationListStart[i].articulation->solveInternalConstraints(params.dt, params.invDt, cache.Z, cache.deltaV, true, false, 0.f, 0.8f);
+			articulationListStart[i].articulation->solveInternalConstraints(params.dt, params.invDt, true, isTGS, 0.f, biasCoefficient, residualReportingActive);
 		++normalIter;
 
 		if(frictionBatchCount > 0)
@@ -354,7 +271,7 @@ void SolverCoreGeneralPF::solveV_Blocks(SolverIslandParams& params) const
 
 		for (PxU32 i = 0; i < articulationListSize; ++i)
 		{
-			articulationListStart[i].articulation->solveInternalConstraints(params.dt, params.invDt, cache.Z, cache.deltaV, true, false, 0.f, 0.8f);
+			articulationListStart[i].articulation->solveInternalConstraints(params.dt, params.invDt, true, isTGS, 0.f, biasCoefficient, residualReportingActive);
 			articulationListStart[i].articulation->writebackInternalConstraints(false);
 		}
 
@@ -370,7 +287,7 @@ void SolverCoreGeneralPF::solveV_Blocks(SolverIslandParams& params) const
 	if(cache.mThresholdStreamIndex > 0)
 	{
 		//Write back to global buffer
-		const PxI32 threshIndex = physx::PxAtomicAdd(reinterpret_cast<PxI32*>(&outThresholdPairs), PxI32(cache.mThresholdStreamIndex)) - PxI32(cache.mThresholdStreamIndex);
+		const PxI32 threshIndex = PxAtomicAdd(outThresholdPairs, PxI32(cache.mThresholdStreamIndex)) - PxI32(cache.mThresholdStreamIndex);
 		for(PxU32 b = 0; b < cache.mThresholdStreamIndex; ++b)
 		{
 			thresholdStream[b + threshIndex] = cache.mThresholdStream[b];
@@ -379,9 +296,12 @@ void SolverCoreGeneralPF::solveV_Blocks(SolverIslandParams& params) const
 	}
 }
 
-PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params,
-	Cm::SpatialVectorF* Z, Cm::SpatialVectorF* deltaV) const
+void SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params, Cm::SpatialVectorF* deltaV, Dy::ErrorAccumulatorEx* errorAccumulator) const
 {
+	const PxF32 biasCoefficient = DY_ARTICULATION_PGS_BIAS_COEFFICIENT;
+	const bool isTGS = false;
+	const bool residualReportingActive = errorAccumulator != NULL;
+
 	SolverContext cache;
 	cache.solverBodyArray = params.bodyDataList;
 
@@ -397,7 +317,6 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 	cache.mThresholdStream = tempThresholdStream;
 	cache.mThresholdStreamLength = TempThresholdStreamSize;
 	cache.mThresholdStreamIndex = 0;
-	cache.Z = Z;
 	cache.deltaV = deltaV;
 
 	const PxReal dt = params.dt;
@@ -415,24 +334,24 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 	PX_ASSERT(positionIterations >= 1);
 
 	PxI32* constraintIndex = &params.constraintIndex;
-	PxI32* constraintIndex2 = &params.constraintIndex2;
+	PxI32* constraintIndexCompleted = &params.constraintIndexCompleted;
 	PxI32* frictionConstraintIndex = &params.frictionConstraintIndex;
 
 	PxI32 endIndexCount = UnrollCount;
-	PxI32 index = physx::PxAtomicAdd(constraintIndex, UnrollCount) - UnrollCount;
-	PxI32 frictionIndex = physx::PxAtomicAdd(frictionConstraintIndex, UnrollCount) - UnrollCount;
+	PxI32 index = PxAtomicAdd(constraintIndex, UnrollCount) - UnrollCount;
+	PxI32 frictionIndex = PxAtomicAdd(frictionConstraintIndex, UnrollCount) - UnrollCount;
 	
 	BatchIterator contactIter(params.constraintBatchHeaders, params.numConstraintHeaders);
 	BatchIterator frictionIter(params.frictionConstraintBatches, params.numFrictionConstraintHeaders);
 
-	PxU32* headersPerPartition = params.headersPerPartition;
-	PxU32 nbPartitions = params.nbPartitions;
+	const PxU32* headersPerPartition = params.headersPerPartition;
+	const PxU32 nbPartitions = params.nbPartitions;
 
 	PxU32* frictionHeadersPerPartition = params.frictionHeadersPerPartition;
 	PxU32 nbFrictionPartitions = params.nbFrictionPartitions;
 
-	PxSolverConstraintDesc* PX_RESTRICT constraintList = params.constraintList;
-	PxSolverConstraintDesc* PX_RESTRICT frictionConstraintList = params.frictionConstraintList;
+	const PxSolverConstraintDesc* PX_RESTRICT constraintList = params.constraintList;
+	const PxSolverConstraintDesc* PX_RESTRICT frictionConstraintList = params.frictionConstraintList;
 
 	PxI32 maxNormalIndex = 0;
 	PxI32 maxProgress = 0;
@@ -446,21 +365,24 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 	PxI32 targetArticIndex = 0;
 
 	PxI32* articIndex = &params.articSolveIndex;
-	PxI32* articIndex2 = &params.articSolveIndex2;
+	PxI32* articIndexCompleted = &params.articSolveIndexCompleted;
 
 	PxI32 normalIteration = 0;
 	PxI32 frictionIteration = 0;
 	PxU32 a = 0;
+
+	cache.contactErrorAccumulator = residualReportingActive ? &errorAccumulator->mPositionIterationErrorAccumulator : NULL;
+	cache.isPositionIteration = true;
 	for(PxU32 i = 0; i < 2; ++i)
 	{
 		SolveBlockMethod* solveTable = i == 0 ? gVTableSolveBlockCoulomb : gVTableSolveConcludeBlockCoulomb;
 		for(; a < positionIterations - 1 + i; ++a)
 		{
-			WAIT_FOR_PROGRESS(articIndex2, targetArticIndex);
+			WAIT_FOR_PROGRESS(articIndexCompleted, targetArticIndex);
 
 			for(PxU32 b = 0; b < nbPartitions; ++b)
 			{
-				WAIT_FOR_PROGRESS(constraintIndex2, maxProgress);
+				WAIT_FOR_PROGRESS(constraintIndexCompleted, maxProgress);
 				maxNormalIndex += headersPerPartition[b];
 				maxProgress += headersPerPartition[b];
 				PxI32 nbSolved = 0;
@@ -475,17 +397,17 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 					if(endIndexCount == 0)
 					{
 						endIndexCount = UnrollCount;
-						index = physx::PxAtomicAdd(constraintIndex, UnrollCount) - UnrollCount;
+						index = PxAtomicAdd(constraintIndex, UnrollCount) - UnrollCount;
 					}
 				}
 				if(nbSolved)
 				{
 					PxMemoryBarrier();
-					PxAtomicAdd(constraintIndex2, nbSolved);
+					PxAtomicAdd(constraintIndexCompleted, nbSolved);
 				}
 			}
 
-			WAIT_FOR_PROGRESS(constraintIndex2, maxProgress);
+			WAIT_FOR_PROGRESS(constraintIndexCompleted, maxProgress);
 
 			maxArticIndex += articulationListSize;
 			targetArticIndex += articulationListSize;
@@ -497,21 +419,22 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 				PxI32 nbSolved = 0;
 				while (articSolveStart < endIdx)
 				{
-					articulationListStart[articSolveStart - articIndexCounter].articulation->solveInternalConstraints(dt, invDt, cache.Z, cache.deltaV, false, false, 0.f, 0.8f);
+					articulationListStart[articSolveStart - articIndexCounter].articulation->solveInternalConstraints(dt, invDt, false, isTGS, 0.f, biasCoefficient, residualReportingActive);
 					articSolveStart++;
 					nbSolved++;
 				}
 
 				if (nbSolved)
 				{
-					physx::PxAtomicAdd(articIndex2, nbSolved);
+					PxMemoryBarrier();
+					PxAtomicAdd(articIndexCompleted, nbSolved);
 				}
 
 				const PxI32 remaining = articSolveEnd - articSolveStart;
 
 				if (remaining == 0)
 				{
-					articSolveStart = physx::PxAtomicAdd(articIndex, ArticCount) - ArticCount;
+					articSolveStart = PxAtomicAdd(articIndex, ArticCount) - ArticCount;
 					articSolveEnd = articSolveStart + ArticCount;
 				}
 			}
@@ -520,10 +443,9 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 
 			++normalIteration;
 		}
-
-
-
 	}
+
+	WAIT_FOR_PROGRESS(articIndexCompleted, targetArticIndex);
 
 	for(PxU32 i = 0; i < 2; ++i)
 	{
@@ -533,7 +455,7 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 		{
 			for(PxU32 b = 0; b < nbFrictionPartitions; ++b)
 			{
-				WAIT_FOR_PROGRESS(constraintIndex2, maxProgress);
+				WAIT_FOR_PROGRESS(constraintIndexCompleted, maxProgress);
 				maxProgress += frictionHeadersPerPartition[b];
 				maxFrictionIndex += frictionHeadersPerPartition[b];
 				PxI32 nbSolved = 0;
@@ -548,34 +470,30 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 					if(frictionEndIndexCount == 0)
 					{
 						frictionEndIndexCount = UnrollCount;
-						frictionIndex  = physx::PxAtomicAdd(frictionConstraintIndex, UnrollCount) - UnrollCount;
+						frictionIndex  = PxAtomicAdd(frictionConstraintIndex, UnrollCount) - UnrollCount;
 					}
 				}
 				if(nbSolved)
 				{
 					PxMemoryBarrier();
-					PxAtomicAdd(constraintIndex2, nbSolved);
+					PxAtomicAdd(constraintIndexCompleted, nbSolved);
 				}
 			}
 			++frictionIteration;
 		}
 	}
 
-	WAIT_FOR_PROGRESS(constraintIndex2, maxProgress);
-	WAIT_FOR_PROGRESS(articIndex2, targetArticIndex);
+	WAIT_FOR_PROGRESS(constraintIndexCompleted, maxProgress);
 
 	PxI32* bodyListIndex = &params.bodyListIndex;
+	PxI32* bodyListIndexCompleted = &params.bodyListIndexCompleted;
 
-	
-
-	PxSolverBody* PX_RESTRICT bodyListStart = params.bodyListStart;
+	const PxSolverBody* PX_RESTRICT bodyListStart = params.bodyListStart;
 
 	Cm::SpatialVector* PX_RESTRICT motionVelocityArray = params.motionVelocityArray;
 
-	PxI32* bodyListIndex2 = &params.bodyListIndex2;
-
 	PxI32 endIndexCount2 = SaveUnrollCount;
-	PxI32 index2 = physx::PxAtomicAdd(bodyListIndex, SaveUnrollCount) - SaveUnrollCount;
+	PxI32 index2 = PxAtomicAdd(bodyListIndex, SaveUnrollCount) - SaveUnrollCount;
 	{
 		PxI32 nbConcluded = 0;
 		while(index2 < articulationListSize)
@@ -584,15 +502,14 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 			endIndexCount2 -= remainder;
 			for(PxI32 b = 0; b < remainder; ++b, ++index2)
 			{
-				ArticulationPImpl::saveVelocity(articulationListStart[index2], cache.deltaV);
+				ArticulationPImpl::saveVelocity(articulationListStart[index2].articulation, cache.deltaV);
 			}
 			nbConcluded += remainder;
 			if(endIndexCount2 == 0)
 			{
-				index2 = physx::PxAtomicAdd(bodyListIndex, SaveUnrollCount) - SaveUnrollCount;
+				index2 = PxAtomicAdd(bodyListIndex, SaveUnrollCount) - SaveUnrollCount;
 				endIndexCount2 = SaveUnrollCount;
 			}
-			nbConcluded += remainder;
 		}
 
 		index2 -= articulationListSize;
@@ -603,24 +520,16 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 		{
 			const PxI32 remainder = PxMin(endIndexCount2, (bodyListSize - index2));
 			endIndexCount2 -= remainder;
-			for(PxI32 b = 0; b < remainder; ++b, ++index2)
-			{
-				PxPrefetchLine(&bodyListStart[index2 + 8]);
-				PxPrefetchLine(&motionVelocityArray[index2 + 8]);
-				PxSolverBody& body = bodyListStart[index2];
-				Cm::SpatialVector& motionVel = motionVelocityArray[index2];
-				motionVel.linear = body.linearVelocity;
-				motionVel.angular = body.angularState;
-				PX_ASSERT(motionVel.linear.isFinite());
-				PX_ASSERT(motionVel.angular.isFinite());
-			}
+
+			saveMotionVelocities(remainder, bodyListStart + index2, motionVelocityArray + index2);
+			index2 += remainder;
 
 			nbConcluded += remainder;
 			
 			//Branch not required because this is the last time we use this atomic variable
 			//if(index2 < articulationListSizePlusbodyListSize)
 			{
-				index2 = physx::PxAtomicAdd(bodyListIndex, SaveUnrollCount) - SaveUnrollCount - articulationListSize;
+				index2 = PxAtomicAdd(bodyListIndex, SaveUnrollCount) - SaveUnrollCount - articulationListSize;
 				endIndexCount2 = SaveUnrollCount;
 			}
 		}
@@ -628,19 +537,21 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 		if(nbConcluded)
 		{
 			PxMemoryBarrier();
-			physx::PxAtomicAdd(bodyListIndex2, nbConcluded);
+			PxAtomicAdd(bodyListIndexCompleted, nbConcluded);
 		}
 	}
 
-	WAIT_FOR_PROGRESS(bodyListIndex2, (bodyListSize + articulationListSize));
+	WAIT_FOR_PROGRESS(bodyListIndexCompleted, (bodyListSize + articulationListSize));
 
 	a = 0;
+	cache.contactErrorAccumulator = errorAccumulator ? &errorAccumulator->mVelocityIterationErrorAccumulator : NULL;
+	cache.isPositionIteration = false;
 	for(; a < velocityIterations-1; ++a)
 	{
-		WAIT_FOR_PROGRESS(articIndex2, targetArticIndex);
+		WAIT_FOR_PROGRESS(articIndexCompleted, targetArticIndex);
 		for(PxU32 b = 0; b < nbPartitions; ++b)
 		{
-			WAIT_FOR_PROGRESS(constraintIndex2, maxProgress);
+			WAIT_FOR_PROGRESS(constraintIndexCompleted, maxProgress);
 			maxNormalIndex += headersPerPartition[b];
 			maxProgress += headersPerPartition[b];
 			
@@ -655,20 +566,20 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 				if(endIndexCount == 0)
 				{
 					endIndexCount = UnrollCount;
-					index = physx::PxAtomicAdd(constraintIndex, UnrollCount) - UnrollCount;
+					index = PxAtomicAdd(constraintIndex, UnrollCount) - UnrollCount;
 				}
 			}
 			if(nbSolved)
 			{
 				PxMemoryBarrier();
-				PxAtomicAdd(constraintIndex2, nbSolved);
+				PxAtomicAdd(constraintIndexCompleted, nbSolved);
 			}
 		}
 		++normalIteration;
 
 		for(PxU32 b = 0; b < nbFrictionPartitions; ++b)
 		{
-			WAIT_FOR_PROGRESS(constraintIndex2, maxProgress);
+			WAIT_FOR_PROGRESS(constraintIndexCompleted, maxProgress);
 			maxFrictionIndex += frictionHeadersPerPartition[b];
 			maxProgress += frictionHeadersPerPartition[b];
 
@@ -676,8 +587,8 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 			while(frictionIndex < maxFrictionIndex)
 			{
 				const PxI32 remainder = PxMin(maxFrictionIndex - frictionIndex, frictionEndIndexCount);
-				SolveBlockParallel(constraintList, remainder, index, batchCount, cache, contactIter, gVTableSolveBlockCoulomb, 
-					normalIteration);
+				SolveBlockParallel(frictionConstraintList, remainder, frictionIndex, frictionBatchCount, cache, frictionIter, gVTableSolveBlockCoulomb, 
+					frictionIteration);
 
 				frictionIndex += remainder;
 				frictionEndIndexCount -= remainder;
@@ -685,17 +596,18 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 				if(frictionEndIndexCount == 0)
 				{
 					frictionEndIndexCount = UnrollCount;
-					frictionIndex  = physx::PxAtomicAdd(frictionConstraintIndex, UnrollCount) - UnrollCount;
+					frictionIndex  = PxAtomicAdd(frictionConstraintIndex, UnrollCount) - UnrollCount;
 				}
 			}
 			if(nbSolved)
 			{
 				PxMemoryBarrier();
-				PxAtomicAdd(constraintIndex2, nbSolved);
+				PxAtomicAdd(constraintIndexCompleted, nbSolved);
 			}
 		}
+		++frictionIteration;
 
-		WAIT_FOR_PROGRESS(constraintIndex2, maxProgress);
+		WAIT_FOR_PROGRESS(constraintIndexCompleted, maxProgress);
 
 		maxArticIndex += articulationListSize;
 		targetArticIndex += articulationListSize;
@@ -707,27 +619,26 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 			PxI32 nbSolved = 0;
 			while (articSolveStart < endIdx)
 			{
-				articulationListStart[articSolveStart - articIndexCounter].articulation->solveInternalConstraints(dt, invDt, cache.Z, cache.deltaV, true, false, 0.f, 0.8f);
+				articulationListStart[articSolveStart - articIndexCounter].articulation->solveInternalConstraints(dt, invDt, true, isTGS, 0.f, biasCoefficient, residualReportingActive);
 				articSolveStart++;
 				nbSolved++;
 			}
 
 			if (nbSolved)
 			{
-				physx::PxAtomicAdd(articIndex2, nbSolved);
+				PxMemoryBarrier();
+				PxAtomicAdd(articIndexCompleted, nbSolved);
 			}
 
 			const PxI32 remaining = articSolveEnd - articSolveStart;
 
 			if (remaining == 0)
 			{
-				articSolveStart = physx::PxAtomicAdd(articIndex, ArticCount) - ArticCount;
+				articSolveStart = PxAtomicAdd(articIndex, ArticCount) - ArticCount;
 				articSolveEnd = articSolveStart + ArticCount;
 			}
-
 		}
-
-		++frictionIteration;
+		articIndexCounter += articulationListSize;
 	}
 
 	ThresholdStreamElement* PX_RESTRICT thresholdStream = params.thresholdStream;
@@ -738,12 +649,13 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 	cache.mSharedOutThresholdPairs = outThresholdPairs;
 	cache.mSharedThresholdStreamLength = thresholdStreamLength;
 
+	// last velocity + write-back iteration
 	{
-		WAIT_FOR_PROGRESS(articIndex2, targetArticIndex);
+		WAIT_FOR_PROGRESS(articIndexCompleted, targetArticIndex);
 
 		for(PxU32 b = 0; b < nbPartitions; ++b)
 		{
-			WAIT_FOR_PROGRESS(constraintIndex2, maxProgress);
+			WAIT_FOR_PROGRESS(constraintIndexCompleted, maxProgress);
 			maxNormalIndex += headersPerPartition[b];
 			maxProgress += headersPerPartition[b];
 			
@@ -752,7 +664,7 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 			{
 				const PxI32 remainder = PxMin(maxNormalIndex - index, endIndexCount);
 
-				SolveBlockParallel(constraintList, remainder, normalIteration * batchCount, batchCount, 
+				SolveBlockParallel(constraintList, remainder, index, batchCount,
 					cache, contactIter, gVTableSolveWriteBackBlockCoulomb, normalIteration);
 
 				index += remainder;
@@ -761,13 +673,13 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 				if(endIndexCount == 0)
 				{
 					endIndexCount = UnrollCount;
-					index = physx::PxAtomicAdd(constraintIndex, UnrollCount) - UnrollCount;
+					index = PxAtomicAdd(constraintIndex, UnrollCount) - UnrollCount;
 				}
 			}
 			if(nbSolved)
 			{
 				PxMemoryBarrier();
-				PxAtomicAdd(constraintIndex2, nbSolved);
+				PxAtomicAdd(constraintIndexCompleted, nbSolved);
 			}
 		}
 
@@ -779,7 +691,7 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 
 		for(PxU32 b = 0; b < nbFrictionPartitions; ++b)
 		{
-			WAIT_FOR_PROGRESS(constraintIndex2, maxProgress);
+			WAIT_FOR_PROGRESS(constraintIndexCompleted, maxProgress);
 			maxFrictionIndex += frictionHeadersPerPartition[b];
 			maxProgress += frictionHeadersPerPartition[b];
 
@@ -797,17 +709,19 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 				if(frictionEndIndexCount == 0)
 				{
 					frictionEndIndexCount = UnrollCount;
-					frictionIndex  = physx::PxAtomicAdd(frictionConstraintIndex, UnrollCount) - UnrollCount;
+					frictionIndex  = PxAtomicAdd(frictionConstraintIndex, UnrollCount) - UnrollCount;
 				}
 			}
 			if(nbSolved)
 			{
 				PxMemoryBarrier();
-				PxAtomicAdd(constraintIndex2, nbSolved);
+				PxAtomicAdd(constraintIndexCompleted, nbSolved);
 			}
 		}
+		++frictionIteration;
+
 		{
-			WAIT_FOR_PROGRESS(constraintIndex2, maxProgress);
+			WAIT_FOR_PROGRESS(constraintIndexCompleted, maxProgress);
 			maxArticIndex += articulationListSize;
 			targetArticIndex += articulationListSize;
 
@@ -818,7 +732,7 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 				PxI32 nbSolved = 0;
 				while (articSolveStart < endIdx)
 				{
-					articulationListStart[articSolveStart - articIndexCounter].articulation->solveInternalConstraints(dt, invDt, cache.Z, cache.deltaV, false, false, 0.f, 0.8f);
+					articulationListStart[articSolveStart - articIndexCounter].articulation->solveInternalConstraints(dt, invDt, false, isTGS, 0.f, biasCoefficient, residualReportingActive);
 					articulationListStart[articSolveStart - articIndexCounter].articulation->writebackInternalConstraints(false);
 					articSolveStart++;
 					nbSolved++;
@@ -826,24 +740,30 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 
 				if (nbSolved)
 				{
-					physx::PxAtomicAdd(articIndex2, nbSolved);
+					PxMemoryBarrier();
+					PxAtomicAdd(articIndexCompleted, nbSolved);
 				}
 
 				PxI32 remaining = articSolveEnd - articSolveStart;
 
 				if (remaining == 0)
 				{
-					articSolveStart = physx::PxAtomicAdd(articIndex, ArticCount) - ArticCount;
+					articSolveStart = PxAtomicAdd(articIndex, ArticCount) - ArticCount;
 					articSolveEnd = articSolveStart + ArticCount;
 				}
 			}
 
+			articIndexCounter += articulationListSize; // not strictly necessary but better safe than sorry
+			WAIT_FOR_PROGRESS(articIndexCompleted, targetArticIndex);
 		}
+
+		// At this point we've awaited the completion all rigid partitions and all articulations
+		// No more syncing on the outside of this function is required.
 
 		if(cache.mThresholdStreamIndex > 0)
 		{
 			//Write back to global buffer
-			PxI32 threshIndex = physx::PxAtomicAdd(outThresholdPairs, PxI32(cache.mThresholdStreamIndex)) - PxI32(cache.mThresholdStreamIndex);
+			PxI32 threshIndex = PxAtomicAdd(outThresholdPairs, PxI32(cache.mThresholdStreamIndex)) - PxI32(cache.mThresholdStreamIndex);
 			for(PxU32 b = 0; b < cache.mThresholdStreamIndex; ++b)
 			{
 				thresholdStream[b + threshIndex] = cache.mThresholdStream[b];
@@ -851,33 +771,7 @@ PxI32 SolverCoreGeneralPF::solveVParallelAndWriteBack(SolverIslandParams& params
 			cache.mThresholdStreamIndex = 0;
 		}
 
-		++frictionIteration;
 	}
-
-	return normalIteration * batchCount + frictionIteration * frictionBatchCount;
-}
-
-
-void SolverCoreGeneralPF::writeBackV
-(const PxSolverConstraintDesc* PX_RESTRICT constraintList, const PxU32 /*constraintListSize*/, PxConstraintBatchHeader* batchHeaders, const PxU32 numBatches,
- ThresholdStreamElement* PX_RESTRICT thresholdStream, const PxU32 thresholdStreamLength, PxU32& outThresholdPairs,
- PxSolverBodyData* atomListData, WriteBackBlockMethod writeBackTable[]) const
-{
-	SolverContext cache;
-	cache.solverBodyArray			= atomListData;
-	cache.mThresholdStream			= thresholdStream;
-	cache.mThresholdStreamLength	= thresholdStreamLength;
-	cache.mThresholdStreamIndex		= 0;
-
-	PxI32 outThreshIndex = 0;
-	for(PxU32 j = 0; j < numBatches; ++j)
-	{
-		PxU8 type = *constraintList[batchHeaders[j].startIndex].constraint;
-		writeBackTable[type](constraintList + batchHeaders[j].startIndex,
-			batchHeaders[j].stride, cache);
-	}
-
-	outThresholdPairs = PxU32(outThreshIndex);
 }
 
 }

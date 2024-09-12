@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -67,12 +67,6 @@ namespace physx
 
 struct MaterialIndicesStruct
 {
-//= ATTENTION! =====================================================================================
-// Changing the data layout of this class breaks the binary serialization format.  See comments for 
-// PX_BINARY_SERIAL_VERSION.  If a modification is required, please adjust the getBinaryMetaData 
-// function.  If the modification is made on a custom branch, please change PX_BINARY_SERIAL_VERSION
-// accordingly.
-//==================================================================================================
 // PX_SERIALIZATION
 	MaterialIndicesStruct(const PxEMPTY)	{}
 	static void getBinaryMetaData(PxOutputStream& stream);
@@ -151,12 +145,6 @@ public:
 
 class GeometryUnion
 {
-//= ATTENTION! =====================================================================================
-// Changing the data layout of this class breaks the binary serialization format.  See comments for 
-// PX_BINARY_SERIAL_VERSION.  If a modification is required, please adjust the getBinaryMetaData 
-// function.  If the modification is made on a custom branch, please change PX_BINARY_SERIAL_VERSION
-// accordingly.
-//==================================================================================================
 public:
 // PX_SERIALIZATION
 	GeometryUnion(const PxEMPTY)	{}
@@ -219,19 +207,13 @@ private:
 
 struct PxsShapeCore
 {
-//= ATTENTION! =====================================================================================
-// Changing the data layout of this class breaks the binary serialization format.  See comments for 
-// PX_BINARY_SERIAL_VERSION.  If a modification is required, please adjust the getBinaryMetaData 
-// function.  If the modification is made on a custom branch, please change PX_BINARY_SERIAL_VERSION
-// accordingly.
-//==================================================================================================
-
-// PX_SERIALIZATION
 	PxsShapeCore()
 	{
 		setDensityForFluid(800.0f);
 	}
-	PxsShapeCore(const PxEMPTY) : mGeometry(PxEmpty)	{}
+
+// PX_SERIALIZATION
+	PxsShapeCore(const PxEMPTY) : mShapeCoreFlags(PxEmpty), mGeometry(PxEmpty)	{}
 //~PX_SERIALIZATION
 
 #if PX_WINDOWS_FAMILY	// PT: to avoid "error: offset of on non-standard-layout type" on Linux

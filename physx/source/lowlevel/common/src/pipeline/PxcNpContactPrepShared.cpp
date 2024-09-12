@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -56,17 +56,12 @@ static PX_FORCE_INLINE void copyContactPoint(PxContact* PX_RESTRICT point, const
 	point->separation = cp->separation;
 }
 
-static void combineMaterials(const PxsMaterialManager* materialManager, PxU16 origMatIndex0, PxU16 origMatIndex1, PxReal& staticFriction, PxReal& dynamicFriction, PxReal& combinedRestitution, PxU32& materialFlags,
-	PxReal& combinedDamping)
+void combineMaterials(const PxsMaterialManager* materialManager, PxU16 origMatIndex0, PxU16 origMatIndex1, PxReal& staticFriction, PxReal& dynamicFriction, PxReal& combinedRestitution, PxU32& materialFlags, PxReal& combinedDamping)
 {
 	const PxsMaterialData& data0 = *materialManager->getMaterial(origMatIndex0);
 	const PxsMaterialData& data1 = *materialManager->getMaterial(origMatIndex1);
 
-	combinedRestitution = PxsCombineRestitution(data0, data1);
-
-	combinedDamping = PxMax(data0.damping, data1.damping);
-
-	PxsCombineIsotropicFriction(data0, data1, dynamicFriction, staticFriction, materialFlags);
+	PxsCombineMaterials(data0, data1, staticFriction, dynamicFriction, combinedRestitution, materialFlags, combinedDamping);
 }
 
 struct StridePatch
@@ -80,8 +75,9 @@ struct StridePatch
 
 PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT contactPoints, const PxU32 numContactPoints, PxcNpThreadContext* threadContext,
 									PxU16& writtenContactCount, PxU8*& outContactPatches, PxU8*& outContactPoints, PxU16& compressedContactSize, PxReal*& outContactForces, PxU32 contactForceByteSize,
-									const PxsMaterialManager* materialManager, bool hasModifiableContacts, bool forceNoResponse, PxsMaterialInfo* PX_RESTRICT pMaterial, PxU8& numPatches,
-									PxU32 additionalHeaderSize,  PxsConstraintBlockManager* manager, PxcConstraintBlockStream* blockStream, bool insertAveragePoint,
+									PxU8*& outFrictionPatches, PxcDataStreamPool* frictionPatchesStreamPool,
+									const PxsMaterialManager* materialManager, bool hasModifiableContacts, bool forceNoResponse, const PxsMaterialInfo* PX_RESTRICT pMaterial, PxU8& numPatches,
+									PxU32 additionalHeaderSize, PxsConstraintBlockManager* manager, PxcConstraintBlockStream* blockStream, bool insertAveragePoint,
 									PxcDataStreamPool* contactStreamPool, PxcDataStreamPool* patchStreamPool, PxcDataStreamPool* forceStreamPool, const bool isMeshType)
 {
 	if(numContactPoints == 0)
@@ -92,6 +88,7 @@ PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT cont
 		outContactForces = NULL;
 		compressedContactSize = 0;
 		numPatches = 0;
+		outFrictionPatches = NULL;
 		return 0;
 	}
 
@@ -101,13 +98,7 @@ PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT cont
 	StridePatch* stridePatches = &strPatches[0];
 	
 	PxU32 numStrideHeaders = 1;
-
-	/*const bool hasInternalFaceIndex = contactPoints[0].internalFaceIndex0 != PXC_CONTACT_NO_FACE_INDEX ||
-										contactPoints[0].internalFaceIndex1 != PXC_CONTACT_NO_FACE_INDEX;*/
-	const bool isModifiable = !forceNoResponse && hasModifiableContacts;
-
 	PxU32 totalUniquePatches = 1;
-
 	PxU32 totalContactPoints = numContactPoints;
 
 	PxU32 strideStart = 0;
@@ -187,6 +178,7 @@ PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT cont
 
 	//Calculate the number of patches/points required
 
+	const bool isModifiable = !forceNoResponse && hasModifiableContacts;
 	const PxU32 patchHeaderSize = sizeof(PxContactPatch) * (isModifiable ? totalContactPoints : totalUniquePatches) + additionalHeaderSize;
 	const PxU32 pointSize = totalContactPoints * (isModifiable ? sizeof(PxModifiableContact) : sizeof(PxContact));
 
@@ -198,6 +190,12 @@ PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT cont
 	PxU8* PX_RESTRICT patchData = NULL;
 	PxReal* PX_RESTRICT forceData = NULL;
 	PxU32* PX_RESTRICT triangleIndice = NULL;
+
+	// Calculate friction data size
+
+	PxU32 frictionPatchesSize = numPatches * sizeof(PxFrictionPatch);
+
+	PxU8* PX_RESTRICT frictionPatchesData = NULL;
 
 	if(contactStreamPool && !isModifiable && additionalHeaderSize == 0) //If the contacts are modifiable, we **DON'T** allocate them in GPU pinned memory. This will be handled later when they're modified
 	{
@@ -222,7 +220,17 @@ PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT cont
 		}
 
 		patchData = patchStreamPool->mDataStream + patchStreamPool->mDataStreamSize - patchIndex;
-	
+
+		PxU32 frictionPatchesIndex = PxTo32(PxAtomicAdd(&frictionPatchesStreamPool->mSharedDataIndex, PxI32(frictionPatchesSize)));
+		
+		if (frictionPatchesStreamPool->isOverflown())
+		{
+			PX_WARN_ONCE("Friction patch buffer overflow detected, please increase its size in the scene desc!\n");
+			isOverflown = true;
+		}
+
+		frictionPatchesData = frictionPatchesStreamPool->mDataStream + frictionPatchesStreamPool->mDataStreamSize - frictionPatchesIndex;
+
 		if(contactForceByteSize)
 		{
 			contactForceByteSize = isMeshType ? contactForceByteSize * 2 : contactForceByteSize;
@@ -250,9 +258,9 @@ PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT cont
 	}
 	else
 	{
-		PxU32 alignedRequiredSize = (requiredContactSize + requiredPatchSize + 0xf) & 0xfffffff0;
+		const PxU32 alignedRequiredSize = computeAlignedSize(requiredContactSize + requiredPatchSize);
 		contactForceByteSize = (isMeshType ? contactForceByteSize * 2 : contactForceByteSize);
-		PxU32 totalSize = alignedRequiredSize + contactForceByteSize;
+		const PxU32 totalSize = alignedRequiredSize + contactForceByteSize + frictionPatchesSize;
 		PxU8* data = manager ? blockStream->reserve(totalSize, *manager) : threadContext->mContactBlockStream.reserve(totalSize);
 
 		patchData = data;
@@ -269,10 +277,15 @@ PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT cont
 			{
 				PxMemZero(forceData, contactForceByteSize);
 			}
+
+			if (frictionPatchesSize)
+			{
+				frictionPatchesData = data + alignedRequiredSize + contactForceByteSize;
+				PxMemZero(frictionPatchesData, frictionPatchesSize);
+			}
 		}
 
 		totalRequiredSize = alignedRequiredSize;
-
 	}
 	
 	PxPrefetchLine(patchData);
@@ -286,6 +299,7 @@ PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT cont
 		outContactForces = NULL;
 		compressedContactSize = 0;
 		numPatches = 0;
+		outFrictionPatches = NULL;
 		return 0;
 	}
 
@@ -293,14 +307,11 @@ PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT cont
 	if(threadContext)
 	{
 		threadContext->mCompressedCacheSize += totalRequiredSize;
-		threadContext->mTotalCompressedCacheSize += totalRequiredSize;
 	}
 #else
 	PX_CATCH_UNDEFINED_ENABLE_SIM_STATS
 #endif
 	compressedContactSize = PxTo16(totalRequiredSize);
-
-	
 
 	//PxU32 startIndex = 0;
 
@@ -320,9 +331,37 @@ PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT cont
 	outContactPoints = contactData;
 	outContactForces = forceData;
 
+	outFrictionPatches = frictionPatchesData;
+
+	struct Local
+	{
+		static PX_FORCE_INLINE void fillPatch(PxContactPatch* PX_RESTRICT patch, const StridePatch& rootPatch, const PxVec3& normal,
+			PxU32 currentIndex, PxReal staticFriction_, PxReal dynamicFriction_, PxReal combinedRestitution_, PxReal combinedDamping_,
+			PxU32 materialFlags_, PxU32 flags, PxU16 matIndex0, PxU16 matIndex1
+		)
+		{
+			patch->mMassModification.linear0 = 1.0f;
+			patch->mMassModification.linear1 = 1.0f;
+			patch->mMassModification.angular0 = 1.0f;
+			patch->mMassModification.angular1 = 1.0f;
+			PX_ASSERT(PxAbs(normal.magnitude() - 1) < 1e-3f);
+			patch->normal = normal;
+			patch->restitution = combinedRestitution_;
+			patch->dynamicFriction = dynamicFriction_;
+			patch->staticFriction = staticFriction_;
+			patch->damping = combinedDamping_;
+			patch->startContactIndex = PxTo8(currentIndex);
+			//KS - we could probably compress this further into the header but the complexity might not be worth it
+			patch->nbContacts = rootPatch.totalCount;
+			patch->materialFlags = PxU8(materialFlags_);
+			patch->internalFlags = PxU8(flags);
+			patch->materialIndex0 = matIndex0;
+			patch->materialIndex1 = matIndex1;
+		}
+	};
+
 	if(isModifiable)
 	{
-		
 		PxU32 flags = PxU32(isModifiable ? PxContactPatch::eMODIFIABLE : 0) |
 			(forceNoResponse ? PxContactPatch::eFORCE_NO_RESPONSE : 0) |
 			(isMeshType ? PxContactPatch::eHAS_FACE_INDICES : 0);
@@ -336,9 +375,7 @@ PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT cont
 			StridePatch& rootPatch = stridePatches[a];
 			if(rootPatch.isRoot)
 			{
-				PxContactPatch* PX_RESTRICT patch = patches++;
-				
-				PxU32 startIndex = rootPatch.startIndex;
+				const PxU32 startIndex = rootPatch.startIndex;
 
 				const PxU16 matIndex0 = pMaterial[startIndex].mMaterialIndex0;
 				const PxU16 matIndex1 = pMaterial[startIndex].mMaterialIndex1;
@@ -350,22 +387,8 @@ PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT cont
 					origMatIndex1 = matIndex1;
 				}
 
-				patch->nbContacts = rootPatch.totalCount;
-
-				patch->startContactIndex = PxTo8(currentIndex);
-				patch->materialFlags = PxU8(materialFlags);
-				patch->staticFriction = staticFriction;
-				patch->dynamicFriction = dynamicFriction;
-				patch->restitution = combinedRestitution;
-				patch->damping = combinedDamping;
-				patch->materialIndex0 = matIndex0;
-				patch->materialIndex1 = matIndex1;
-				patch->normal = contactPoints[0].normal;
-				patch->mMassModification.mInvMassScale0 = 1.0f;
-				patch->mMassModification.mInvMassScale1 = 1.0f;
-				patch->mMassModification.mInvInertiaScale0 = 1.0f;
-				patch->mMassModification.mInvInertiaScale1 = 1.0f;
-				patch->internalFlags = PxU8(flags);
+				PxContactPatch* PX_RESTRICT patch = patches++;
+				Local::fillPatch(patch, rootPatch, contactPoints[startIndex].normal, currentIndex, staticFriction, dynamicFriction, combinedRestitution, combinedDamping, materialFlags, flags, matIndex0, matIndex1);
 
 				//const PxU32 endIndex = strideHeader[a];
 				const PxU32 totalCountThisPatch = rootPatch.totalCount;
@@ -397,7 +420,7 @@ PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT cont
 					patch->nbContacts++;
 					point->contact = avgPt * recipCount;
 					point->separation = avgPen * recipCount;
-					point->normal = contactPoints[0].normal;
+					point->normal = contactPoints[startIndex].normal;
 					point->maxImpulse = PX_MAX_REAL;
 					point->targetVelocity = PxVec3(0.0f);
 					point->staticFriction = staticFriction;
@@ -456,8 +479,10 @@ PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT cont
 
 				if(rootPatch.isRoot)
 				{
-					const PxU16 matIndex0 = pMaterial[rootPatch.startIndex].mMaterialIndex0;
-					const PxU16 matIndex1 = pMaterial[rootPatch.startIndex].mMaterialIndex1;
+					const PxU32 startIndex = rootPatch.startIndex;
+
+					const PxU16 matIndex0 = pMaterial[startIndex].mMaterialIndex0;
+					const PxU16 matIndex1 = pMaterial[startIndex].mMaterialIndex1;
 					if(matIndex0 != origMatIndex0 || matIndex1 != origMatIndex1)
 					{
 						combineMaterials(materialManager, matIndex0, matIndex1, staticFriction, dynamicFriction, combinedRestitution, materialFlags, combinedDamping);
@@ -467,23 +492,8 @@ PxU32 physx::writeCompressedContact(const PxContactPoint* const PX_RESTRICT cont
 					}
 
 					PxContactPatch* PX_RESTRICT patch = patches++;
-					patch->normal = contactPoints[rootPatch.startIndex].normal;
-					PX_ASSERT(PxAbs(patch->normal.magnitude() - 1) < 1e-3f);
-					patch->nbContacts = rootPatch.totalCount;
-					patch->startContactIndex = PxTo8(currentIndex);
-					//KS - we could probably compress this further into the header but the complexity might not be worth it
-					patch->staticFriction = staticFriction;
-					patch->dynamicFriction = dynamicFriction;
-					patch->restitution = combinedRestitution;
-					patch->damping = combinedDamping;
-					patch->materialIndex0 = matIndex0;
-					patch->materialIndex1 = matIndex1;
-					patch->materialFlags = PxU8(materialFlags);
-					patch->internalFlags = PxU8(flags);
-					patch->mMassModification.mInvMassScale0 = 1.0f;
-					patch->mMassModification.mInvMassScale1 = 1.0f;
-					patch->mMassModification.mInvInertiaScale0 = 1.0f;
-					patch->mMassModification.mInvInertiaScale1 = 1.0f;
+					Local::fillPatch(patch, rootPatch, contactPoints[startIndex].normal, currentIndex, staticFriction, dynamicFriction, combinedRestitution, combinedDamping, materialFlags, flags, matIndex0, matIndex1);
+
 					if(insertAveragePoint && (rootPatch.totalCount) > 1)
 					{
 						patch->nbContacts++;

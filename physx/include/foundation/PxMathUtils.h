@@ -22,16 +22,13 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
 #ifndef PX_MATH_UTILS_H
 #define PX_MATH_UTILS_H
 
-/** \addtogroup common
-  @{
-*/
 
 #include "foundation/PxFoundationConfig.h"
 #include "foundation/Px.h"
@@ -100,7 +97,34 @@ PX_INLINE PxPlane PxPlaneEquationFromTransform(const PxTransform& pose)
 \return Returns left when t=0, right when t=1 and a linear interpolation of left and right when 0 < t < 1.
 Returns angle between -PI and PI in radians
 */
-PX_FOUNDATION_API PxQuat PxSlerp(const PxReal t, const PxQuat& left, const PxQuat& right);
+PX_CUDA_CALLABLE PX_INLINE PxQuat PxSlerp(const PxReal t, const PxQuat& left, const PxQuat& right)
+{
+	const PxReal quatEpsilon = (PxReal(1.0e-8f));
+
+	PxReal cosine = left.dot(right);
+	PxReal sign = PxReal(1);
+	if (cosine < 0)
+	{
+		cosine = -cosine;
+		sign = PxReal(-1);
+	}
+
+	PxReal sine = PxReal(1) - cosine * cosine;
+
+	if (sine >= quatEpsilon * quatEpsilon)
+	{
+		sine = PxSqrt(sine);
+		const PxReal angle = PxAtan2(sine, cosine);
+		const PxReal i_sin_angle = PxReal(1) / sine;
+
+		const PxReal leftw = PxSin(angle * (PxReal(1) - t)) * i_sin_angle;
+		const PxReal rightw = PxSin(angle * t) * i_sin_angle * sign;
+
+		return left * leftw + right * rightw;
+	}
+
+	return left;
+}
 
 /**
 \brief integrate transform.
@@ -268,7 +292,7 @@ PX_CUDA_CALLABLE PX_FORCE_INLINE PxF32 PxComputeAngle(const PxVec3& v0, const Px
 \param[out] right is the first of the two vectors perpendicular to dir
 \param[out] up is the second of the two vectors perpendicular to dir
 */
-PX_INLINE void PxComputeBasisVectors(const PxVec3& dir, PxVec3& right, PxVec3& up)
+PX_CUDA_CALLABLE PX_INLINE void PxComputeBasisVectors(const PxVec3& dir, PxVec3& right, PxVec3& up)
 {
 	// Derive two remaining vectors
 	if (PxAbs(dir.y) <= 0.9999f)
@@ -497,5 +521,4 @@ PX_INLINE PX_CUDA_CALLABLE PxReal PxSdfSample(const PxReal* PX_RESTRICT sdf, con
 } // namespace physx
 #endif
 
-/** @} */
 #endif

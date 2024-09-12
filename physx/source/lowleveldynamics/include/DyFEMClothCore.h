@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 
 #ifndef PXDV_FEMCLOTH_CORE_H
 #define PXDV_FEMCLOTH_CORE_H
@@ -39,8 +39,6 @@
 
 namespace physx
 {
-	class PxBuffer;
-
 	namespace Dy
 	{
 		struct FEMClothCore
@@ -52,31 +50,26 @@ namespace physx
 			bool									dirty;
 			PxReal									wakeCounter;
 			PxFEMClothFlags							mFlags;
-
-			// Ratio between target volume and rest volume in inflatable simulation.
-			PxReal									mRestVolumeScale;
+			PxFEMClothDataFlags						mDirtyFlags;
 
 			PxArray<PxU16>							mMaterialHandles;
-			PxBuffer*								mClothPositionInvMass;
-			PxBuffer*								mClothVelocity;
-			PxBuffer*								mClothRestPosition;
+
+			// device pointers
+			PxVec4*									mPositionInvMass;
+			PxVec4*									mVelocity;
+			PxVec4*									mRestPosition;
 
 			// multimaterial bending effects
 			PxArray<PxReal>							mBendingScales;
 
-			// wind
-			PxReal									drag;
-			PxReal									lift;
-			PxVec3									wind;
-			PxReal									airDensity;
-
 			PxReal									maxVelocity;
+			PxReal									maxDepenetrationVelocity;
 
 			// negative values mean no activation angle: apply bending force toward rest bending angle
 			PxReal									mBendingActivationAngle;
 
 			// number of collision pair updates per timestep. Collision pair is updated at least once per timestep and increasing the frequency provides better collision pairs.
-			PxU32									NbCollisionPairUpdatesPerTimestep;
+			PxU32									nbCollisionPairUpdatesPerTimestep;
 
 			// number of collision substeps in each sub-timestep. Collision constraints can be applied multiple times in each sub-timestep.
 			PxU32									nbCollisionSubsteps;
@@ -84,16 +77,15 @@ namespace physx
 
 			FEMClothCore()
 			{
-		        drag = 0.f;
-		        lift = 0.f;
-		        wind = PxVec3(0.f);
-		        airDensity = 1.225f; // default: 1.225 kg/m^3
 		        maxVelocity = 0.f;
+				maxDepenetrationVelocity = 0.f;
 		        mBendingActivationAngle = -1.f;
-		        mRestVolumeScale = 0.0f; // No inflatable simulation by default.
 
-				NbCollisionPairUpdatesPerTimestep = 1;
+				nbCollisionPairUpdatesPerTimestep = 1;
 				nbCollisionSubsteps = 1;
+
+				dirty = 0;
+				mDirtyFlags = PxFEMClothDataFlags(0);
 			}
 
 			void setMaterial(const PxU16 materialHandle)

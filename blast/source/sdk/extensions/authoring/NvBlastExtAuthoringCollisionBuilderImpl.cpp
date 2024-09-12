@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2016-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2016-2024 NVIDIA Corporation. All rights reserved.
 
 #include <NvBlastGlobals.h>
 #include "NvBlastExtAuthoringCollisionBuilderImpl.h"
@@ -73,8 +73,8 @@ void trimCollisionGeometry(ConvexMeshBuilder& cmb, uint32_t chunksCount, Collisi
                 continue;
             }
             if (importerHullsInProximityApexFree(in[hull]->pointsCount, toNvShared(in[hull]->points), hullsBounds[hull],
-                                                 NvTransform(), NvVec3(1, 1, 1), in[hull2]->pointsCount,
-                                                 toNvShared(in[hull2]->points), hullsBounds[hull2], NvTransform(),
+                                                 NvTransform(NvIdentity), NvVec3(1, 1, 1), in[hull2]->pointsCount,
+                                                 toNvShared(in[hull2]->points), hullsBounds[hull2], NvTransform(NvIdentity),
                                                  NvVec3(1, 1, 1), 0.0, &params) == false)
             {
                 continue;

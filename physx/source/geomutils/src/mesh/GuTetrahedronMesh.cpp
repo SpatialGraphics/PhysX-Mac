@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -311,14 +311,14 @@ void SoftBodyMesh::release()
 
 //PxVec3* TetrahedronMesh::getVerticesForModification()
 //{
-//	PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, __FILE__, __LINE__, "PxSoftBodyMesh::getVerticesForModification() is not currently supported.");
+//	PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, PX_FL, "PxSoftBodyMesh::getVerticesForModification() is not currently supported.");
 //
 //	return NULL;
 //}
 
 //PxBounds3 BVTetrahedronMesh::refitBVH()
 //{
-//	PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, __FILE__, __LINE__, "PxSoftBodyMesh::refitBVH() is not currently supported.");
+//	PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, PX_FL, "PxSoftBodyMesh::refitBVH() is not currently supported.");
 //
 //	return PxBounds3(mAABB.getMin(), mAABB.getMax());
 //}

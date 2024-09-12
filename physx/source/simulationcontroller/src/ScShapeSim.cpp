@@ -22,51 +22,26 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
-#include "ScBodySim.h"
-#include "ScStaticSim.h"
-#include "ScScene.h"
-#include "ScElementSimInteraction.h"
-#include "ScShapeInteraction.h"
-#include "ScTriggerInteraction.h"
-#include "ScSimStats.h"
-#include "ScObjectIDTracker.h"
-#include "GuHeightFieldUtil.h"
-#include "GuTriangleMesh.h"
-#include "GuConvexMeshData.h"
-#include "GuHeightField.h"
-#include "PxsContext.h"
-#include "PxsTransformCache.h"
-#include "CmTransformUtils.h"
-#include "GuBounds.h"
-#include "PxsRigidBody.h"
-#include "ScSqBoundsManager.h"
-#include "PxsSimulationController.h"
-#include "common/PxProfileZone.h"
-#include "ScArticulationSim.h"
+#include "ScShapeSim.h"
 
 using namespace physx;
-using namespace Gu;
 using namespace Sc;
 
 void resetElementID(Scene& scene, ShapeSimBase& shapeSim);
 
-ShapeSim::ShapeSim(RigidSim& owner, ShapeCore& core) :
-	ShapeSimBase(owner, &core)
+ShapeSim::ShapeSim(RigidSim& owner, ShapeCore& core) : ShapeSimBase(owner, &core)
 {
-	// sizeof(ShapeSim) = 40 bytes
-
 	initSubsystemsDependingOnElementID();
-
-	core.setSim(this);
+	core.setExclusiveSim(this);
 }
 
 ShapeSim::~ShapeSim()
 {
-	const_cast<ShapeCore*>(&getCore())->clearSim();
+	Sc::ShapeCore::getCore(*mLLShape.mShapeCore).setExclusiveSim(NULL);
 	Scene& scScene = getScene();
 	resetElementID(scScene, *this);
 }

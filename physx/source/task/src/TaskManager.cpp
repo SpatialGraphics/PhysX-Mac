@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 
 #include "task/PxTask.h"
 #include "foundation/PxErrors.h"
@@ -413,10 +413,10 @@ void PxTaskMgr::dispatchTask( PxTaskID taskID )
 	LOCK(); // todo: reader lock necessary?
     PxTaskTableRow& tt = mTaskTable[ taskID ];
 
-    // prevent re-submission
+	// prevent re-submission
     if( tt.mType == PxTaskType::eCOMPLETED )
     {		
-		mErrorCallback.reportError(PxErrorCode::eDEBUG_WARNING, "PxTask dispatched twice", __FILE__, __LINE__);
+		mErrorCallback.reportError(PxErrorCode::eDEBUG_WARNING, "PxTask dispatched twice", PX_FL);
 		return;
     }
 
@@ -433,7 +433,7 @@ void PxTaskMgr::dispatchTask( PxTaskID taskID )
 		break;
 	case PxTaskType::eCOMPLETED:
     default:
-        mErrorCallback.reportError(PxErrorCode::eDEBUG_WARNING, "Unknown task type", __FILE__, __LINE__);
+        mErrorCallback.reportError(PxErrorCode::eDEBUG_WARNING, "Unknown task type", PX_FL);
         resolveRow( taskID );
         break;
     }

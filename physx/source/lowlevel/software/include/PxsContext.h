@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -92,13 +92,12 @@ class PxsContext : public PxUserAllocated, public PxcNpContext
 {
 												PX_NOCOPY(PxsContext)
 public:
-												PxsContext(	const PxSceneDesc& desc, PxTaskManager*, Cm::FlushPool&, 
-													PxCudaContextManager*, const PxU32 poolSlabSize, PxU64 contextID);
+												PxsContext(	const PxSceneDesc& desc, PxTaskManager*, Cm::FlushPool&, PxCudaContextManager*, PxU32 poolSlabSize, PxU64 contextID);
 												~PxsContext();
 
 					void						createTransformCache(PxVirtualAllocatorCallback& allocatorCallback);
 
-					PxsContactManager*			createContactManager(PxsContactManager* contactManager, const bool useCCD);
+					PxsContactManager*			createContactManager(PxsContactManager* contactManager, bool useCCD);
 					void						createCache(Gu::Cache& cache, PxGeometryType::Enum geomType0, PxGeometryType::Enum geomType1);
 					void						destroyCache(Gu::Cache& cache);
 					void						destroyContactManager(PxsContactManager* cm);
@@ -116,7 +115,7 @@ public:
 	PX_FORCE_INLINE	void						setContactDistance(const PxFloatArrayPinned* contactDistances)	{ mContactDistances = contactDistances;	}
 
 	// Task-related
-					void						updateContactManager(PxReal dt, bool hasBoundsArrayChanged, bool hasContactDistanceChanged, PxBaseTask* continuation, 
+					void						updateContactManager(PxReal dt, bool hasContactDistanceChanged, PxBaseTask* continuation, 
 																	PxBaseTask* firstPassContinuation, Cm::FanoutTask* updateBoundAndShapeTask);
 					void						secondPassUpdateContactManager(PxReal dt, PxBaseTask* continuation);
 					void						fetchUpdateContactManager();
@@ -127,11 +126,6 @@ public:
 	// Manager status change
 					bool						getManagerTouchEventCount(int* newTouch, int* lostTouch, int* ccdTouch) const;
 					bool						fillManagerTouchEvents(
-													PxvContactManagerTouchEvent* newTouch, PxI32& newTouchCount,
-													PxvContactManagerTouchEvent* lostTouch, PxI32& lostTouchCount,
-													PxvContactManagerTouchEvent* ccdTouch, PxI32& ccdTouchCount);
-
-					bool						fillManagerTouchEvents2(
 													PxvContactManagerTouchEvent* newTouch, PxI32& newTouchCount,
 													PxvContactManagerTouchEvent* lostTouch, PxI32& lostTouchCount,
 													PxvContactManagerTouchEvent* ccdTouch, PxI32& ccdTouchCount);
@@ -184,10 +178,7 @@ public:
 	PX_FORCE_INLINE	PxvNphaseImplementationContext*	getNphaseFallbackImplementationContext()	const							{ return mNpFallbackImplementationContext;	}
 	PX_FORCE_INLINE	void							setNphaseFallbackImplementationContext(PxvNphaseImplementationContext* ctx)	{ mNpFallbackImplementationContext = ctx;	}
 
-	PxU32										getTotalCompressedContactSize() const	{ return mTotalCompressedCacheSize; }
-	PxU32										getMaxPatchCount() const				{ return mMaxPatches; }
-
-	PX_FORCE_INLINE	PxcThreadCoherentCache<PxcNpThreadContext, PxcNpContext>&		getNpThreadContextPool()	{ return mNpThreadContextPool;	}
+					PxU32							getMaxPatchCount() const				{ return mMaxPatches; }
 
 	PX_FORCE_INLINE	PxcNpThreadContext*			getNpThreadContext()
 	{
@@ -244,8 +235,6 @@ public:
 private:
 						void					mergeCMDiscreteUpdateResults(PxBaseTask* continuation);
 							
-						PxU32					mIndex;
-
 	// Threading
 	PxcThreadCoherentCache<PxcNpThreadContext, PxcNpContext>
 												mNpThreadContextPool;
@@ -294,15 +283,13 @@ private:
 					const PxFloatArrayPinned*	mContactDistances;
 
 					PxU32						mMaxPatches;
-					PxU32						mTotalCompressedCacheSize;
 
-					PxU64						mContextID;
+					const PxU64					mContextID;
 
 					friend class PxsCCDContext;
 					friend class PxsNphaseImplementationContext;
 					friend class PxgNphaseImplementationContext; //FDTODO ideally it shouldn't be here..
 };
-
 
 PX_FORCE_INLINE void PxsContext::clearManagerTouchEvents()
 {
@@ -312,7 +299,6 @@ PX_FORCE_INLINE void PxsContext::clearManagerTouchEvents()
 		mCMTouchEventCount[i] = 0;
 	}
 }
-
 
 }
 

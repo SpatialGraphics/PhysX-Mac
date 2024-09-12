@@ -22,13 +22,16 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_PHYSICS_NP_FEMCLOTH
 #define PX_PHYSICS_NP_FEMCLOTH
 
+#include "foundation/PxAllocator.h"
+#include "foundation/PxPreprocessor.h"
+#if PX_SUPPORT_GPU_PHYSX
 #if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
 #include "PxFEMCloth.h"
 #endif
@@ -38,6 +41,8 @@
 namespace physx
 {
 	class NpShape;
+	class PxsMemoryManager;
+	class PxVirtualAllocatorCallback;
 
 #if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
 	class NpFEMCloth : public NpActorTemplate<PxFEMCloth>
@@ -46,7 +51,7 @@ namespace physx
 		NpFEMCloth(PxCudaContextManager& cudaContextManager);
 		NpFEMCloth(PxBaseFlags baseFlags, PxCudaContextManager& cudaContextManager);
 
-		virtual				 			~NpFEMCloth() {}
+		virtual				 			~NpFEMCloth() { releaseAllocator(); }
 
 		void exportData(PxSerializationContext& /*context*/) const {}
 
@@ -59,6 +64,7 @@ namespace physx
 		virtual	void					setFEMClothFlags(PxFEMClothFlags flags);
 		virtual	PxFEMClothFlags	  		getFEMClothFlag() const;
 
+#if 0 // disabled until future use.
 		virtual void					setDrag(const PxReal drag);
 		virtual PxReal					getDrag() const;
 
@@ -71,11 +77,12 @@ namespace physx
 		virtual	void					setAirDensity(const PxReal wind);
 		virtual	PxReal					getAirDensity() const;
 
+		virtual	void					setBendingActivationAngle(const PxReal angle);
+		virtual	PxReal					getBendingActivationAngle() const;
+#endif
+
 		virtual	void					setParameter(const PxFEMParameters& paramters);
 		virtual PxFEMParameters			getParameter() const;
-
-		virtual void					setRestVolumeScale(const PxReal scale);
-	    virtual PxReal					getRestVolumeScale() const;
 
 		virtual	void					setBendingScales(const PxReal* const bendingScale, PxU32 nbElements);
 	    virtual const PxReal*			getBendingScales() const;
@@ -84,8 +91,8 @@ namespace physx
 		virtual	void					setMaxVelocity(const PxReal v);
 		virtual	PxReal					getMaxVelocity() const;
 
-		virtual	void					setBendingActivationAngle(const PxReal angle);
-		virtual	PxReal					getBendingActivationAngle() const;
+		virtual	void					setMaxDepenetrationVelocity(const PxReal v);
+		virtual	PxReal					getMaxDepenetrationVelocity() const;
 
 		virtual	void					setNbCollisionPairUpdatesPerTimestep(const PxU32 frequency);
 		virtual	PxU32					getNbCollisionPairUpdatesPerTimestep() const;
@@ -93,10 +100,16 @@ namespace physx
 		virtual	void					setNbCollisionSubsteps(const PxU32 frequency);
 		virtual	PxU32					getNbCollisionSubsteps() const;
 
+		virtual PxVec4*					getPositionInvMassBufferD();
+		virtual PxVec4*					getVelocityBufferD();
+		virtual PxVec4*					getRestPositionBufferD();
+		
+		virtual void					markDirty(PxFEMClothDataFlags flags);
+
 		virtual	void					addRigidFilter(PxRigidActor* actor, PxU32 vertId);
 		virtual	void					removeRigidFilter(PxRigidActor* actor, PxU32 vertId);
 
-		virtual	PxU32					addRigidAttachment(PxRigidActor* actor, PxU32 vertId, const PxVec3& actorSpacePose, PxConeLimitedConstraint* params);
+		virtual	PxU32					addRigidAttachment(PxRigidActor* actor, PxU32 vertId, const PxVec3& actorSpacePose, PxConeLimitedConstraint* constraint);
 		virtual	void					removeRigidAttachment(PxRigidActor* actor, PxU32 handle);
 
 		virtual	void					addTriRigidFilter(PxRigidActor* actor, PxU32 triangleId);
@@ -111,10 +124,6 @@ namespace physx
 		virtual	PxU32					addClothAttachment(PxFEMCloth* otherCloth, PxU32 otherTriIdx, const PxVec4& otherTriBarycentric, PxU32 triIdx, const PxVec4& triBarycentric);
 		virtual	void					removeClothAttachment(PxFEMCloth* otherCloth, PxU32 handle);
 
-		virtual	void					readData(PxFEMClothData::Enum flags, PxBuffer& buffer);
-
-		virtual	void					writeData(PxFEMClothData::Enum flags, PxBuffer& buffer, bool flush);
-
 		virtual	PxCudaContextManager*	getCudaContextManager() const;
 		virtual	void					setCudaContextManager(PxCudaContextManager*);
 
@@ -125,8 +134,6 @@ namespace physx
 		virtual PxShape*				getShape();
 
 		virtual	bool					attachShape(PxShape& shape);
-
-		virtual void					setClothCore(const PxVec4* const  positionInvMass, const  PxVec4* const velocityInvMass);
 
 		virtual void					detachShape();
 
@@ -139,22 +146,22 @@ namespace physx
 
 		virtual	bool					isSleeping() const;
 
-
-		// Debug name
-		void							setName(const char*);
-		const char*						getName() const;
-
-
 		void							updateMaterials();
 
 	private:
 
-		PxBuffer*						getBufferFromFlag(PxFEMClothData::Enum flags);
+		void 							createAllocator();
+		void 							releaseAllocator();
 
 		NpShape*						mShape;
 		Sc::FEMClothCore				mCore;
 		PxCudaContextManager*			mCudaContextManager;
+
+		PxsMemoryManager*				mMemoryManager;
+		PxVirtualAllocatorCallback*		mDeviceMemoryAllocator;
 	};
 #endif
 }
+#endif
+
 #endif

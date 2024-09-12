@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -148,8 +148,8 @@ bool writeCommandResponseParams
 		writer.Key("ResponseCurve");
 		writer.StartArray();
 		const PxReal* speeds = responseParams.nonlinearResponse.speedResponses + responseParams.nonlinearResponse.speedResponsesPerCommandValue[i];
-		const PxReal* responses = speeds + responseParams.nonlinearResponse.nbSpeedRenponsesPerCommandValue[i];
-		for (PxU32 j = 0; j < responseParams.nonlinearResponse.nbSpeedRenponsesPerCommandValue[i]; j++)
+		const PxReal* responses = speeds + responseParams.nonlinearResponse.nbSpeedResponsesPerCommandValue[i];
+		for (PxU32 j = 0; j < responseParams.nonlinearResponse.nbSpeedResponsesPerCommandValue[i]; j++)
 		{
 			writer.StartArray();
 			writer.Double(static_cast<double>(speeds[j]));

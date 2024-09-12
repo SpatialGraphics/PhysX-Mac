@@ -2,12 +2,7 @@
 @call :CLEAN_EXIT
 @echo off
 
-pushd %~dp0
-set PHYSX_ROOT_DIR=%CD%
-popd
-SET PHYSX_ROOT_DIR=%PHYSX_ROOT_DIR:\=/%
-
-call "%PHYSX_ROOT_DIR%\buildtools\packman\packman" init
+call "%~dp0\buildtools\packman\packman" init
 set "PYTHONPATH=%PM_MODULE_DIR%;%PYTHONPATH%"
 
 IF %1.==. GOTO ADDITIONAL_PARAMS_MISSING
@@ -29,11 +24,19 @@ for /f "usebackq tokens=*" %%i in (`"%PM_vswhere_PATH%\VsWhere.exe  -version [15
 for /f "usebackq tokens=*" %%i in (`"%PM_vswhere_PATH%\VsWhere.exe  -version [16.0,17.0) -latest -property installationPath"`) do (
   set Install2019Dir=%%i
 	set VS160PATH="%%i"
+  @REM Setting VS160COMNTOOLS: This is mainly needed for building for Switch
+  @REM Reason: When both MS build tools and Visual Studio are installed together in the same system
+  @REM Cmake will use msbuild to generate the project instead of Visual Studio. Which make Cmake fail
+  @REM When generating the project for Switch. However, if an environment variable of the form VS##0COMNTOOLS,
+  @REM where ## the Visual Studio major version number, is set and points to the Common7/Tools directory within
+  @REM one of the VS instances, that instance will be used. see: https://cmake.org/cmake/help/latest/variable/CMAKE_GENERATOR_INSTANCE.html
+  set "VS160COMNTOOLS=%%i\Common7\Tools\"
 )
 
 for /f "usebackq tokens=*" %%i in (`"%PM_vswhere_PATH%\VsWhere.exe  -version [17.0,18.0) -latest -property installationPath"`) do (
 	set Install2022Dir=%%i
 	set VS170PATH="%%i"
+  set "VS170COMNTOOLS=%%i\Common7\Tools\"
 )
 
 if exist "%Install2017Dir%\VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt" (
@@ -73,7 +76,7 @@ if exist "%Install2022Dir%\VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.t
 )
 
 :ADDITIONAL_PARAMS_MISSING
-call "%~dp0buildtools\packman\python" %PHYSX_ROOT_DIR%/buildtools/cmake_generate_projects.py %1
+call "%~dp0buildtools\packman\python" "%~dp0buildtools\cmake_generate_projects.py" %1
 if %ERRORLEVEL% neq 0 (
   set /p DUMMY=Hit ENTER to continue...
   exit /b %errorlevel%

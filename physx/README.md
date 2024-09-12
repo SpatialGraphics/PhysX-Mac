@@ -1,6 +1,6 @@
 # NVIDIA PhysX SDK 5
 
-Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
@@ -52,8 +52,7 @@ For copyright details, please refer to the license files included in the package
 
 | Software                  | Copyright Holder                                                                    | Package                          |
 |---------------------------|-------------------------------------------------------------------------------------|----------------------------------|
-| CMake                     | Kitware, Inc. and Contributors                                                      | CMakeModules                     |
-| FindCUDA                  | James Bigler: NVIDIA Corp, Abe Stephens: SCI Institute                              | CMakeModules                     |
+| CMake                     | Kitware, Inc. and Contributors                                                      | cmake                            |
 | LLVM                      | University of Illinois at Urbana-Champaign                                          | clang-physxmetadata              |
 | Visual Studio Locator     | Microsoft Corporation                                                               | VsWhere                          |
 | Freeglut                  | Pawel W. Olszta                                                                     | freeglut-windows<br>opengl-linux |

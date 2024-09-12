@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -183,6 +183,7 @@ void PxVehiclePhysxActorKeepAwakeCheck
  const PxReal wakeCounterThreshold,
  const PxReal wakeCounterResetValue,
  const PxVehicleGearboxState* gearState,
+ const PxReal* throttle,
  PxRigidBody& physxActor)
 {
 	PX_CHECK_AND_RETURN(!(physxActor.getRigidBodyFlags() & PxRigidBodyFlag::eKINEMATIC), "PxVehiclePhysxActorKeepAwakeCheck: physxActor is kinematic. This is not supported");
@@ -202,7 +203,8 @@ void PxVehiclePhysxActorKeepAwakeCheck
 
 	if (wakeCounter < wakeCounterThreshold)
 	{
-		if (gearState && (gearState->currentGear != gearState->targetGear))
+		if ((throttle && ((*throttle) > 0.0f)) ||
+			(gearState && (gearState->currentGear != gearState->targetGear)))
 		{
 			setWakeCounter(wakeCounterResetValue, rd, link);
 

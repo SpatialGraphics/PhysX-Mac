@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -328,10 +328,10 @@ PX_FORCE_INLINE void intersectCylinderPlane
 }
 
 static void limitSuspensionExpansionVelocity
-(const PxReal jounceSpeed, const PxReal previousJounceSpeed, const PxReal previousJounce,  
+(const PxReal jounceSpeed, const PxReal previousJounceSpeed, const PxReal previousJounce,
  const PxReal suspStiffness, const PxReal suspDamping,
  const PxVec3& suspDirWorld, const PxReal wheelMass, 
- const PxReal dt, const PxVec3& gravity,
+ const PxReal dt, const PxVec3& gravity, const bool hasGroundHit,
  PxVehicleSuspensionState& suspState)
 {
 	PX_ASSERT(jounceSpeed < 0.0f);  // don't call this method if the suspension is not expanding
@@ -357,16 +357,30 @@ static void limitSuspensionExpansionVelocity
 
 	const PxReal gravitySuspDir = gravity.dot(suspDirWorld);
 
-	const PxReal suspDirVelWheel = suspDirVel + (gravitySuspDir * dt);
-	// gravity is considered too as it affects the wheel and can close the distance to the ground
-	// too. External forces acting on the sprung mass are ignored as those propagate through the 
-	// suspension to the wheel.
+	PxReal velocityThreshold;
+	if (hasGroundHit)
+	{
+		velocityThreshold = (gravitySuspDir > 0.0f) ? suspDirVel + (gravitySuspDir * dt) : suspDirVel;
+		// gravity is considered too as it affects the wheel and can close the distance to the ground
+		// too. External forces acting on the sprung mass are ignored as those propagate
+		// through the suspension to the wheel.
+		// If gravity points in the opposite direction of the suspension travel direction, it is
+		// ignored. The suspension should never elongate more than what's given by the current delta
+		// jounce (defined by jounceSpeed, i.e., jounceSpeed < -suspDirVel has to hold all the time
+		// for the clamping to take place).
+	}
+	else
+	{
+		velocityThreshold = suspDirVel;
+		// if there was no hit detected, the gravity will not be taken into account since there is no
+		// ground to move towards.
+	}
 
-	if (jounceSpeed < (-suspDirVelWheel))
+	if (jounceSpeed < (-velocityThreshold))
 	{
 		// The suspension can not expand fast enough to place the wheel on the ground. As a result, 
 		// the scenario is interpreted as if there was no hit and the wheels end up in air. The 
-		// jounce is adjusted based on the clamped velocity to not have it snap to 0 immediately.
+		// jounce is adjusted based on the clamped velocity to not have it snap to the target immediately.
 		// note: could consider applying the suspension force to the sprung mass too but the complexity
 		//       seems high enough already.
 
@@ -409,7 +423,7 @@ void PxVehicleSuspensionStateUpdate
 				const PxReal jounceSpeed = (-prevJounce) / dt;
 				const PxVec3 suspDirWorld = PxVehicleComputeSuspensionDirection(suspParams, rigidBodyState.pose);
 				limitSuspensionExpansionVelocity(jounceSpeed, prevJounceSpeed, prevJounce, 
-					suspStiffness, suspDamping, suspDirWorld, whlParams.mass, dt, gravity,
+					suspStiffness, suspDamping, suspDirWorld, whlParams.mass, dt, gravity, false,
 					suspState);
 			}
 		}
@@ -454,7 +468,7 @@ void PxVehicleSuspensionStateUpdate
 	if (suspStateCalcParams.limitSuspensionExpansionVelocity && (suspState.jounceSpeed < 0.0f))
 	{
 		limitSuspensionExpansionVelocity(suspState.jounceSpeed, prevJounceSpeed, prevJounce, 
-			suspStiffness, suspDamping, suspDir, whlParams.mass, dt, gravity,
+			suspStiffness, suspDamping, suspDir, whlParams.mass, dt, gravity, true,
 			suspState);
 	}
 }
@@ -513,10 +527,6 @@ void PxVehicleSuspensionForceUpdate
  PxVehicleSuspensionForce& suspForces)
 {
 	suspForces.setToDefault();
-
-	//If there are no road geom hits then carry on with zero force.
-	if (!roadGeom.hitState)
-		return;
 
 	//If the wheel cannot touch the ground then carry on with zero force.
 	if (!PxVehicleIsWheelOnGround(suspState))
@@ -594,10 +604,6 @@ void PxVehicleSuspensionLegacyForceUpdate
  PxVehicleSuspensionForce& suspForces)
 {
 	suspForces.setToDefault();
-
-	//If there are no road geom hits then carry on with zero force.
-	if (!roadGeomState.hitState)
-		return;
 
 	//If the wheel cannot touch the ground then carry on with zero force.
 	if (!PxVehicleIsWheelOnGround(suspState))

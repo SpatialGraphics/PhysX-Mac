@@ -22,13 +22,14 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef BP_AABBMANAGER_BASE_H
 #define BP_AABBMANAGER_BASE_H
 
+#include "foundation/PxAllocator.h"
 #include "foundation/PxPinnedArray.h"
 #include "foundation/PxBitMap.h"
 #include "foundation/PxSList.h"
@@ -38,6 +39,7 @@
 #include "GuBounds.h"
 #include "PxFiltering.h"
 #include "PxAggregate.h"
+#include "foundation/PxSimpleTypes.h"
 
 namespace physx
 {
@@ -58,7 +60,7 @@ namespace Bp
 	/**
 	\brief Changes to the configuration of overlap pairs are reported as void* pairs.
 	\note Each void* in the pair corresponds to the void* passed to AABBManager::createVolume.
-	@see AABBManager::createVolume, AABBManager::getCreatedOverlaps, AABBManager::getDestroyedOverlaps
+	\see AABBManager::createVolume, AABBManager::getCreatedOverlaps, AABBManager::getDestroyedOverlaps
 	*/
 	struct AABBOverlap
 	{
@@ -69,8 +71,14 @@ namespace Bp
 			PX_ASSERT(userData0 != userData1);
 		}
 
+		// PT: these will eventually be the userData pointers passed to addBounds(), i.e. Sc::ElementSim pointers in PhysX. This may not be
+		// necessary at all, since in the current design the bounds indices themselves come from BP clients (they're not handles managed by the BP).
+		// So there's a 1:1 mapping between bounds-indices (which are effectively edlement IDs in PhysX) and the userData pointers (Sc::ElementSim).
+		// Thus we could just return bounds indices directly to users - at least in the context of PhysX, maybe the standalone BP is different.
 		void*	mUserData0;
 		void*	mUserData1;
+
+		// PT: TODO: not sure what happened there but mPairUserData is not used inside the BP itself so we need to revisit this.
 		/*		union
 				{
 					ActorHandle	mPairHandle;		//For created pairs, this is the index into the pair in the pair manager
@@ -198,11 +206,6 @@ namespace Bp
 													mChangedHandleMap.growAndSet(handle);
 												}
 
-/*						void					setVolumeType(BoundsIndex handle, ElementType::Enum volumeType)
-												{
-													mVolumeData[handle].setVolumeType(volumeType);
-												}*/
-
 						void					setBPGroup(BoundsIndex index, Bp::FilterGroup::Enum group)
 												{
 													PX_ASSERT((index + 1) < mVolumeData.size());
@@ -211,7 +214,7 @@ namespace Bp
 												}
 
 		virtual			void					updateBPFirstPass(PxU32 numCpuTasks, Cm::FlushPool& flushPool, bool hasContactDistanceUpdated, PxBaseTask* continuation) = 0;
-		virtual			void					updateBPSecondPass(PxU32 numCpuTasks, PxcScratchAllocator* scratchAllocator, PxBaseTask* continuation)	= 0;
+		virtual			void					updateBPSecondPass(PxcScratchAllocator* scratchAllocator, PxBaseTask* continuation)	= 0;
 
 		virtual			void					postBroadPhase(PxBaseTask*, Cm::FlushPool& flushPool) = 0;
 		virtual			void					reallocateChangedAABBMgActorHandleMap(const PxU32 size) = 0;
@@ -232,27 +235,15 @@ namespace Bp
 
 						void					freeBuffers();
 
-						void**					getOutOfBoundsObjects(PxU32& nbOutOfBoundsObjects)
-												{
-													nbOutOfBoundsObjects = mOutOfBoundsObjects.size();
-													return mOutOfBoundsObjects.begin();
-												}
-
-						void					clearOutOfBoundsObjects()
-												{
-													mOutOfBoundsObjects.clear();
-												}
-
-						void**					getOutOfBoundsAggregates(PxU32& nbOutOfBoundsAggregates)
-												{
-													nbOutOfBoundsAggregates = mOutOfBoundsAggregates.size();
-													return mOutOfBoundsAggregates.begin();
-												}
-
-						void					clearOutOfBoundsAggregates()
-												{
-													mOutOfBoundsAggregates.clear();
-												}
+						struct OutOfBoundsData
+						{
+							PxU32	mNbOutOfBoundsObjects;
+							PxU32	mNbOutOfBoundsAggregates;
+							void**	mOutOfBoundsObjects;
+							void**	mOutOfBoundsAggregates;
+						};
+		virtual			bool					getOutOfBoundsObjects(OutOfBoundsData&)		{ return false;	}
+		virtual			void					clearOutOfBoundsObjects()					{}
 
 						void					shiftOrigin(const PxVec3& shift);
 
@@ -261,6 +252,15 @@ namespace Bp
 		virtual			void					releaseDeferredAggregateIds() = 0;
 		virtual			void					setGPUStateChanged()			{}
 		virtual			void					setPersistentStateChanged()		{}
+
+#if PX_ENABLE_SIM_STATS
+						PxU32					getGpuDynamicsLostFoundPairsStats()				{ return mGpuDynamicsLostFoundPairsStats; }
+						PxU32					getGpuDynamicsTotalAggregatePairsStats()		{ return mGpuDynamicsTotalAggregatePairsStats; }
+						PxU32					getGpuDynamicsLostFoundAggregatePairsStats()	{ return mGpuDynamicsLostFoundAggregatePairsStats; }
+#else
+	PX_CATCH_UNDEFINED_ENABLE_SIM_STATS
+#endif
+
 
 	protected:
 						void					reserveShapeSpace(PxU32 nbShapes);
@@ -313,6 +313,12 @@ namespace Bp
 													mVolumeData[index].setUserData(userData);
 												}
 
+		PX_FORCE_INLINE	void					initEntry(BoundsIndex index, PxReal contactDistance, Bp::FilterGroup::Enum group, void* userData, ElementType::Enum volumeType)
+												{
+													initEntry(index, contactDistance, group, userData);
+													mVolumeData[index].setVolumeType(volumeType);	// PT: must be done after setUserData
+												}
+
 		PX_FORCE_INLINE	void					resetEntry(BoundsIndex index)
 												{
 													mGroups[index] = Bp::FilterGroup::eINVALID;
@@ -328,13 +334,19 @@ namespace Bp
 						BroadPhase&				mBroadPhase;
 						BoundsArray&			mBoundsArray;
 
-						PxArray<void*>			mOutOfBoundsObjects;	// PT: TODO: only on CPU
-						PxArray<void*>			mOutOfBoundsAggregates;	// PT: TODO: only on CPU
 						PxArray<AABBOverlap>	mCreatedOverlaps[ElementType::eCOUNT];
 						PxArray<AABBOverlap>	mDestroyedOverlaps[ElementType::eCOUNT];
 
 						PxU32					mUsedSize;				// highest used value + 1
 						PxU32					mNbAggregates;
+
+#if PX_ENABLE_SIM_STATS
+						PxU32					mGpuDynamicsLostFoundPairsStats;
+						PxU32					mGpuDynamicsTotalAggregatePairsStats;
+						PxU32					mGpuDynamicsLostFoundAggregatePairsStats;
+#else
+	PX_CATCH_UNDEFINED_ENABLE_SIM_STATS
+#endif
 
 #ifdef BP_USE_AGGREGATE_GROUP_TAIL
 		// PT: TODO: even in the 3.4 trunk this stuff is a clumsy mess: groups are "BpHandle" suddenly passed

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -179,7 +179,7 @@ PxU32 physx::PxMeshQuery::findOverlapTriangleMesh(
 bool physx::PxMeshQuery::findOverlapTriangleMesh(	PxReportCallback<PxGeomIndexPair>& callback,
 													const PxTriangleMeshGeometry& meshGeom0, const PxTransform& meshPose0,
 													const PxTriangleMeshGeometry& meshGeom1, const PxTransform& meshPose1,
-													PxGeometryQueryFlags queryFlags, PxMeshMeshQueryFlags meshMeshFlags)
+													PxGeometryQueryFlags queryFlags, PxMeshMeshQueryFlags meshMeshFlags, float tolerance)
 {
 	PX_SIMD_GUARD_CNDT(queryFlags & PxGeometryQueryFlag::eSIMD_GUARD)
 
@@ -191,7 +191,7 @@ bool physx::PxMeshQuery::findOverlapTriangleMesh(	PxReportCallback<PxGeomIndexPa
 		return PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, PX_FL, "PxMeshQuery::findOverlapTriangleMesh(): only available between two BVH34 triangles meshes.");
 
 	// PT: ...so we don't need a table like for the other ops, just go straight to BV4
-	return intersectMeshVsMesh_BV4(callback, *tm0, *tm1, meshPose0, meshPose1, meshGeom0.scale, meshGeom1.scale, meshMeshFlags);
+	return intersectMeshVsMesh_BV4(callback, *tm0, meshPose0, meshGeom0.scale, *tm1, meshPose1, meshGeom1.scale, meshMeshFlags, tolerance);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

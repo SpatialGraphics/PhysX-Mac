@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
@@ -606,18 +606,13 @@ void PvdMetaDataBinding::sendAllProperties(PvdDataStream& inStream, const PxPhys
 	inStream.setPropertyValue(&inPhysics, "Version.Minor", PxU32(PX_PHYSICS_VERSION_MINOR));
 	inStream.setPropertyValue(&inPhysics, "Version.Bugfix", PxU32(PX_PHYSICS_VERSION_BUGFIX));
 
-#if PX_CHECKED
-#if defined(NDEBUG)
-	// This is a checked build
-	String buildType = "Checked";
-#elif defined(_DEBUG)
-	// This is a debug build
+#if PX_DEBUG
 	String buildType = "Debug";
-#endif
+#elif PX_CHECKED
+	String buildType = "Checked";
 #elif PX_PROFILE
 	String buildType = "Profile";
-#elif defined(NDEBUG)
-	// This is a release build
+#else
 	String buildType = "Release";
 #endif
 	inStream.setPropertyValue(&inPhysics, "Version.Build", buildType);
@@ -674,7 +669,7 @@ void PvdMetaDataBinding::sendAllProperties(PvdDataStream& inStream, const PxScen
 
 		theDesc.gpuDynamicsConfig				= inScene.getGpuDynamicsConfig();
 //		PxBounds3 SanityBounds;
-//		PxgDynamicsMemoryConfig GpuDynamicsConfig;
+//		PxGpuDynamicsMemoryConfig GpuDynamicsConfig;
 //		PxU32 GpuMaxNumPartitions;
 //		PxU32 GpuComputeVersion;
 //		PxReal BroadPhaseInflation;
@@ -1102,23 +1097,21 @@ static void sendGeometry(PvdMetaDataBinding& metaBind, PvdDataStream& inStream, 
 
 static void setGeometry(PvdMetaDataBinding& metaBind, PvdDataStream& inStream, const PxShape& inObj, PsPvd* pvd)
 {
-	switch(inObj.getGeometryType())
+	const PxGeometry& geom = inObj.getGeometry();
+	switch(geom.getType())
 	{
-#define SEND_PVD_GEOM_TYPE(enumType, geomType, valueType)				\
-	case PxGeometryType::enumType:                                      \
-	{                                                                   \
-		Px##geomType geom;                                              \
-		inObj.get##geomType(geom);                                      \
-		sendGeometry<valueType>(metaBind, inStream, inObj, geom, pvd);  \
-	}                                                                   \
+#define SEND_PVD_GEOM_TYPE(enumType, geomType, valueType)                           \
+	case PxGeometryType::enumType:                                                  \
+	{                                                                               \
+		Px##geomType geomT = static_cast<const Px##geomType&>(geom);                \
+		sendGeometry<valueType>(metaBind, inStream, inObj, geomT, pvd);             \
+	}                                                                               \
 	break;
 		SEND_PVD_GEOM_TYPE(eSPHERE, SphereGeometry, PxSphereGeometryGeneratedValues);
 	// Plane geometries don't have any properties, so this avoids using a property
 	// struct for them.
 	case PxGeometryType::ePLANE:
 	{
-		PxPlaneGeometry geom;
-		inObj.getPlaneGeometry(geom);
 		const void* geomInst = (reinterpret_cast<const PxU8*>(&inObj)) + 4;
 		inStream.createInstance(getPvdNamespacedNameForType<PxPlaneGeometry>(), geomInst);
 		inStream.setPropertyValue(&inObj, "Geometry", geomInst);
@@ -1205,11 +1198,11 @@ void PvdMetaDataBinding::releaseAndRecreateGeometry(PvdDataStream& inStream, con
 {
 	const void* geomInst = (reinterpret_cast<const PxU8*>(&inObj)) + 4;
 	inStream.destroyInstance(geomInst);
+	const PxGeometry& geom = inObj.getGeometry();
 	// Quick fix for HF modify, PxConvexMesh and PxTriangleMesh need recook, they should always be new if modified
-	if(inObj.getGeometryType() == PxGeometryType::eHEIGHTFIELD)
+	if(geom.getType() == PxGeometryType::eHEIGHTFIELD)
 	{
-		PxHeightFieldGeometry hfGeom;
-		inObj.getHeightFieldGeometry(hfGeom);
+		const PxHeightFieldGeometry& hfGeom = static_cast<const PxHeightFieldGeometry&>(geom);
 		if(inStream.isInstanceValid(hfGeom.heightField))
 			sendAllProperties(inStream, *hfGeom.heightField);
 	}
@@ -1495,73 +1488,6 @@ void PvdMetaDataBinding::sendAllProperties(PvdDataStream& inStream, const PxPBDP
 }
 
 void PvdMetaDataBinding::destroyInstance(PvdDataStream& inStream, const PxPBDParticleSystem& inObj, const PxScene& ownerScene)
-{
-	PX_UNUSED(inStream);
-	PX_UNUSED(inObj);
-	PX_UNUSED(ownerScene);
-}
-
-
-void PvdMetaDataBinding::createInstance(PvdDataStream& inStream, const PxFLIPParticleSystem& inObj, const PxScene& ownerScene, const PxPhysics& ownerPhysics, PsPvd* pvd)
-{
-	PX_UNUSED(inStream);
-	PX_UNUSED(inObj);
-	PX_UNUSED(ownerScene);
-	PX_UNUSED(ownerPhysics);
-	PX_UNUSED(pvd);
-}
-
-void PvdMetaDataBinding::sendAllProperties(PvdDataStream& inStream, const PxFLIPParticleSystem& inObj)
-{
-	PX_UNUSED(inStream);
-	PX_UNUSED(inObj);
-}
-
-void PvdMetaDataBinding::destroyInstance(PvdDataStream& inStream, const PxFLIPParticleSystem& inObj, const PxScene& ownerScene)
-{
-	PX_UNUSED(inStream);
-	PX_UNUSED(inObj);
-	PX_UNUSED(ownerScene);
-}
-
-void PvdMetaDataBinding::createInstance(PvdDataStream& inStream, const PxMPMParticleSystem& inObj, const PxScene& ownerScene, const PxPhysics& ownerPhysics, PsPvd* pvd)
-{
-	PX_UNUSED(inStream);
-	PX_UNUSED(inObj);
-	PX_UNUSED(ownerScene);
-	PX_UNUSED(ownerPhysics);
-	PX_UNUSED(pvd);
-}
-
-void PvdMetaDataBinding::sendAllProperties(PvdDataStream& inStream, const PxMPMParticleSystem& inObj)
-{
-	PX_UNUSED(inStream);
-	PX_UNUSED(inObj);
-}
-
-void PvdMetaDataBinding::destroyInstance(PvdDataStream& inStream, const PxMPMParticleSystem& inObj, const PxScene& ownerScene)
-{
-	PX_UNUSED(inStream);
-	PX_UNUSED(inObj);
-	PX_UNUSED(ownerScene);
-}
-
-void PvdMetaDataBinding::createInstance(PvdDataStream& inStream, const PxCustomParticleSystem& inObj, const PxScene& ownerScene, const PxPhysics& ownerPhysics, PsPvd* pvd)
-{
-	PX_UNUSED(inStream);
-	PX_UNUSED(inObj);
-	PX_UNUSED(ownerScene);
-	PX_UNUSED(ownerPhysics);
-	PX_UNUSED(pvd);
-}
-
-void PvdMetaDataBinding::sendAllProperties(PvdDataStream& inStream, const PxCustomParticleSystem& inObj)
-{
-	PX_UNUSED(inStream);
-	PX_UNUSED(inObj);
-}
-
-void PvdMetaDataBinding::destroyInstance(PvdDataStream& inStream, const PxCustomParticleSystem& inObj, const PxScene& ownerScene)
 {
 	PX_UNUSED(inStream);
 	PX_UNUSED(inObj);

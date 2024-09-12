@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -260,10 +260,10 @@ bool CustomScene::raycast(const PxVec3& origin, const PxVec3& unitDir, float max
 
 	struct LocalCB : PxBVH::RaycastCallback
 	{
-		LocalCB(const CustomScene& scene, const PxVec3& origin, const PxVec3& dir, CustomHit& hit) :
+		LocalCB(const CustomScene& scene, const PxVec3& origin_, const PxVec3& dir, CustomHit& hit_) :
 			mScene	(scene),
-			mHit	(hit),
-			mOrigin	(origin),
+			mHit	(hit_),
+			mOrigin	(origin_),
 			mDir	(dir),
 			mStatus	(false)
 		{
@@ -320,10 +320,10 @@ bool CustomScene::shadowRay(const PxVec3& origin, const PxVec3& unitDir, float m
 
 	struct LocalCB : PxBVH::RaycastCallback
 	{
-		LocalCB(const CustomScene& scene, const PxVec3& origin, const PxVec3& dir, const CustomObject* filtered) :
+		LocalCB(const CustomScene& scene, const PxVec3& origin_, const PxVec3& dir, const CustomObject* filtered_) :
 			mScene		(scene),
-			mFiltered	(filtered),
-			mOrigin		(origin),
+			mFiltered	(filtered_),
+			mOrigin		(origin_),
 			mDir		(dir),
 			mStatus		(false)
 		{

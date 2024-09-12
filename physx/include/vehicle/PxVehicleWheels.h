@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -48,9 +48,10 @@ class PxPhysics;
 class PxMaterial;
 
 /**
+\deprecated This API is deprecated and is replaced by a new API, see the Vehicles section in the 4.0 to 5.1 migration guide.
 \brief Flags to configure the vehicle wheel simulation.
 
-@see PxVehicleWheelsSimData::setFlags(), PxVehicleWheelsSimData::getFlags()
+\see PxVehicleWheelsSimData::setFlags(), PxVehicleWheelsSimData::getFlags()
 */
 struct PX_DEPRECATED PxVehicleWheelsSimFlag
 {
@@ -116,23 +117,18 @@ struct PX_DEPRECATED PxVehicleWheelsSimFlag
 /**
 \brief Collection of set bits defined in #PxVehicleWheelsSimFlag.
 
-@see PxVehicleWheelsSimFlag
+\see PxVehicleWheelsSimFlag
 */
 typedef PxFlags<PxVehicleWheelsSimFlag::Enum, PxU32> PxVehicleWheelsSimFlags;
 PX_FLAGS_OPERATORS(PxVehicleWheelsSimFlag::Enum, PxU32)
 
 /**
+\deprecated This API is deprecated and is replaced by a new API, see the Vehicles section in the 4.0 to 5.1 migration guide.
 \brief Data structure describing configuration data of a vehicle with up to 20 wheels.
 */
 
 class PX_DEPRECATED PxVehicleWheelsSimData
 {
-//= ATTENTION! =====================================================================================
-// Changing the data layout of this class breaks the binary serialization format.  See comments for 
-// PX_BINARY_SERIAL_VERSION.  If a modification is required, please adjust the getBinaryMetaData 
-// function.  If the modification is made on a custom branch, please change PX_BINARY_SERIAL_VERSION
-// accordingly.
-//==================================================================================================
 public:
 
 	friend class PxVehicleWheels;
@@ -143,7 +139,7 @@ public:
 
 	/**
 	\brief Allocate a PxVehicleWheelsSimData instance for with nbWheels.
-	@see free
+	\see free
 	*/
 	static PxVehicleWheelsSimData* allocate(const PxU32 nbWheels);
 
@@ -158,13 +154,13 @@ public:
 	of a standard car.  If either of these assumptions is broken then each suspension will need to 
 	be individually configured with custom strength, damping rate, and sprung mass.
 
-	@see allocate
+	\see allocate
 	*/
 	void setChassisMass(const PxF32 chassisMass);
 
 	/**
 	\brief Free a PxVehicleWheelsSimData instance 
-	@see allocate
+	\see allocate
 	*/
 	void free();
 
@@ -184,7 +180,7 @@ public:
 
 	/**
 	\brief Return the number of wheels 
-	@see allocate
+	\see allocate
 	*/
 	PxU32 getNbWheels() const {return mNbActiveWheels;}
 
@@ -232,7 +228,7 @@ public:
 	shapes of the vehicle's PxRigidDynamic that corresponds to the ith wheel.  A return value of -1 means
 	that the wheel is not mapped to a PxShape.
 
-	@see PxRigidActor.getShapes
+	\see PxRigidActor.getShapes
 	*/
 	PxI32 getWheelShapeMapping(const PxU32 wheelId) const;
 
@@ -243,7 +239,7 @@ public:
 
 	/**
 	\brief Return the number of unique anti-roll bars that have been added with addAntiRollBarData
-	@see PxVehicleWheelsSimData::addAntiRollBarData
+	\see PxVehicleWheelsSimData::addAntiRollBarData
 	*/
 	PxU32 getNbAntiRollBars() const 
 	{
@@ -338,7 +334,7 @@ public:
 
 	\param shapeId is the shape index.
 	
-	@see PxVehicleUpdates, PxVehicleDrive4W::setup, PxVehicleDriveTank::setup, PxVehicleNoDrive::setup, setSceneQueryFilterData, PxRigidActor::getShapes
+	\see PxVehicleUpdates, PxVehicleDrive4W::setup, PxVehicleDriveTank::setup, PxVehicleNoDrive::setup, setSceneQueryFilterData, PxRigidActor::getShapes
 	*/
 	void setWheelShapeMapping(const PxU32 wheelId, const PxI32 shapeId);
 
@@ -347,7 +343,7 @@ public:
 	direction of the specified suspension. The default value is PxFilterData(0,0,0,0)
 	\param suspId is the wheel index
 	\param sqFilterData is the raycast filter data for the suspension raycast.
-	@see setWheelShapeMapping
+	\see setWheelShapeMapping
 	*/
 	void setSceneQueryFilterData(const PxU32 suspId, const PxFilterData& sqFilterData);
 
@@ -379,7 +375,7 @@ public:
 
 	\note An existing anti-roll bar can be disabled by calling antiRoll.mStiffness to zero.
 
-	@see PxVehicleWheelsSimData::getAntiRollBarData, PxVehicleAntiRollBarData
+	\see PxVehicleWheelsSimData::getAntiRollBarData, PxVehicleAntiRollBarData
 	*/
 	PxU32 addAntiRollBarData(const PxVehicleAntiRollBarData& antiRoll);
 
@@ -394,17 +390,17 @@ public:
 	\note For tanks (PxVehicleDriveTank) any drive torque that could be delivered to the wheel through the tank differential will be 
 	re-directed to the remaining enabled wheels.
 
-	@see enableWheel
-	@see PxVehicleDifferentialNWData::setDrivenWheel
-	@see PxVehicleDifferential4WData::mFrontLeftRightSplit, PxVehicleDifferential4WData::mRearLeftRightSplit, PxVehicleDifferential4WData::mType
-	@see PxVehicleNoDrive::setDriveTorque
-	@see PxVehicle4WEnable3WTadpoleMode, PxVehicle4WEnable3WDeltaMode
+	\see enableWheel
+	\see PxVehicleDifferentialNWData::setDrivenWheel
+	\see PxVehicleDifferential4WData::mFrontLeftRightSplit, PxVehicleDifferential4WData::mRearLeftRightSplit, PxVehicleDifferential4WData::mType
+	\see PxVehicleNoDrive::setDriveTorque
+	\see PxVehicle4WEnable3WTadpoleMode, PxVehicle4WEnable3WDeltaMode
 
 	\note If a PxShape is associated with the disabled wheel then the association must be broken by calling setWheelShapeMapping(wheelId, -1). 
-	@see setWheelShapeMapping
+	\see setWheelShapeMapping
 
 	\note A wheel that is disabled must also simultaneously be given zero wheel rotation speed.
-	@see PxVehicleWheelsDynData::setWheelRotationSpeed
+	\see PxVehicleWheelsDynData::setWheelRotationSpeed
 
 	\note Care must be taken with the sprung mass supported by the remaining enabled wheels.  Depending on the desired effect, the mass of the rigid body 
 	might need to be distributed among the remaining enabled wheels and suspensions.
@@ -417,7 +413,7 @@ public:
 	\brief Enable a wheel so that suspension forces and tire forces are applied to the rigid body.
 	All wheels are enabled by default and remain enabled until they are disabled.
 	\param[in] wheel is the wheel index.
-	@see disableWheel
+	\see disableWheel
 	*/
 	void enableWheel(const PxU32 wheel);
 
@@ -484,7 +480,7 @@ public:
 
 	<b>Default:</b> no flag set
 
-	@see PxVehicleWheelsSimFlag
+	\see PxVehicleWheelsSimFlag
 	*/
 	void setFlags(PxVehicleWheelsSimFlags flags);
 
@@ -493,7 +489,7 @@ public:
 
 	\return The values of the flags.
 
-	@see PxVehicleWheelsSimFlag
+	\see PxVehicleWheelsSimFlag
 	*/
 	PxVehicleWheelsSimFlags getFlags() const;
 
@@ -501,7 +497,7 @@ private:
 
 	/**
 	\brief Graph to filter normalised load
-	@see setTireLoadFilterData, getTireLoadFilterData
+	\see setTireLoadFilterData, getTireLoadFilterData
 	*/
 	PxVehicleTireLoadFilterData mNormalisedLoadFilter;
 
@@ -568,7 +564,7 @@ private:
 	/**
 	\brief The vehicle wheel simulation flags.
 
-	@see PxVehicleWheelsSimFlags
+	\see PxVehicleWheelsSimFlags
 	*/
 	PxU32 mFlags;
 
@@ -623,6 +619,7 @@ PX_COMPILE_TIME_ASSERT(0==(sizeof(PxVehicleWheelsSimData) & 15));
 
 
 /**
+\deprecated This API is deprecated and is replaced by a new API, see the Vehicles section in the 4.0 to 5.1 migration guide.
 \brief Description of the per wheel intersection method to be used by PxVehicleWheelsDynData::setTireContacts()
 */
 struct PX_DEPRECATED PxTireContactIntersectionMethod
@@ -635,16 +632,11 @@ struct PX_DEPRECATED PxTireContactIntersectionMethod
 };
 
 /**
+\deprecated This API is deprecated and is replaced by a new API, see the Vehicles section in the 4.0 to 5.1 migration guide.
 \brief Data structure with instanced dynamics data for wheels
 */
 class PX_DEPRECATED PxVehicleWheelsDynData
 {
-//= ATTENTION! =====================================================================================
-// Changing the data layout of this class breaks the binary serialization format.  See comments for 
-// PX_BINARY_SERIAL_VERSION.  If a modification is required, please adjust the getBinaryMetaData 
-// function.  If the modification is made on a custom branch, please change PX_BINARY_SERIAL_VERSION
-// accordingly.
-//==================================================================================================
 public:
 
 	friend class PxVehicleWheels;
@@ -657,7 +649,7 @@ public:
 
 	/**
 	\brief Set all wheels to their rest state.
-	@see setup
+	\see setup
 	*/
 	void setToRestState();
 
@@ -761,7 +753,7 @@ private:
 	
 	/**
 	\brief A userData pointer can be stored for each wheel.
-	@see setUserData, getUserData
+	\see setUserData, getUserData
 	*/
 	void** mUserDatas;
 
@@ -799,7 +791,7 @@ public:
 
 	\return Number of constraints associated with this vehicle.
 
-	@see PxConstraint getConstraints()
+	\see PxConstraint getConstraints()
 	*/
 	PxU32 getNbConstraints() const { return mNbWheels4; }
 
@@ -813,24 +805,19 @@ public:
 	\param[in] startIndex Index of first constraint pointer to be retrieved
 	\return Number of constraint pointers written to the buffer.
 
-	@see PxConstraint getNbConstraints()
+	\see PxConstraint getNbConstraints()
 	*/
 	PxU32 getConstraints(PxConstraint** userBuffer, PxU32 bufferSize, PxU32 startIndex = 0) const;
 };
 PX_COMPILE_TIME_ASSERT(0==(sizeof(PxVehicleWheelsDynData) & 15));
 
 /**
+\deprecated This API is deprecated and is replaced by a new API, see the Vehicles section in the 4.0 to 5.1 migration guide.
 \brief Data structure with instanced dynamics data and configuration data of a vehicle with just wheels
-@see PxVehicleDrive, PxVehicleDrive4W, PxVehicleDriveTank
+\see PxVehicleDrive, PxVehicleDrive4W, PxVehicleDriveTank
 */
 class PX_DEPRECATED PxVehicleWheels : public PxBase
 {
-//= ATTENTION! =====================================================================================
-// Changing the data layout of this class breaks the binary serialization format.  See comments for 
-// PX_BINARY_SERIAL_VERSION.  If a modification is required, please adjust the getBinaryMetaData 
-// function.  If the modification is made on a custom branch, please change PX_BINARY_SERIAL_VERSION
-// accordingly.
-//==================================================================================================
 public:
 
 	friend class PxVehicleUpdate;
@@ -838,7 +825,7 @@ public:
 
 	/**
 	\brief Return the type of vehicle 
-	@see PxVehicleTypes
+	\see PxVehicleTypes
 	*/
 	PX_FORCE_INLINE PxU32 getVehicleType() const {return mType;}
 
@@ -857,7 +844,7 @@ public:
 
 	\param[in] forwardAxis The axis denoting the local space forward direction of the vehicle.
 
-	@see PxVehicleSetBasisVectors
+	\see PxVehicleSetBasisVectors
 	*/
 	PxReal computeForwardSpeed(const PxVec3& forwardAxis = PxVehicleGetDefaultContext().forwardAxis) const;
 
@@ -866,7 +853,7 @@ public:
 
 	\param[in] sideAxis The axis denoting the local space side direction of the vehicle.
 
-	@see PxVehicleSetBasisVectors
+	\see PxVehicleSetBasisVectors
 	*/
 	PxReal computeSidewaysSpeed(const PxVec3& sideAxis = PxVehicleGetDefaultContext().sideAxis) const;
 
@@ -893,7 +880,7 @@ protected:
 	bool isValid() const;
 
 	/**
-	@see PxVehicleDrive4W::allocate, PxVehicleDriveTank::allocate
+	\see PxVehicleDrive4W::allocate, PxVehicleDriveTank::allocate
 	*/
 	static PxU32 computeByteSize(const PxU32 nbWheels);
 	static PxU8* patchupPointers(const PxU32 nbWheels, PxVehicleWheels* vehWheels, PxU8* ptr);
@@ -901,7 +888,7 @@ protected:
 
 	/**
 	\brief Deallocate a PxVehicleWheels instance.
-	@see PxVehicleDrive4W::free, PxVehicleDriveTank::free
+	\see PxVehicleDrive4W::free, PxVehicleDriveTank::free
 	*/
 	void free();
 
@@ -911,7 +898,7 @@ protected:
 	void onConstraintRelease();
 
 	/**
-	@see PxVehicleDrive4W::setup, PxVehicleDriveTank::setup
+	\see PxVehicleDrive4W::setup, PxVehicleDriveTank::setup
 	*/
 	void setup
 		(PxPhysics* physics, PxRigidDynamic* vehActor, 
@@ -950,7 +937,7 @@ protected:
 public:
 	virtual		void			requiresObjects(PxProcessPxBaseCallback& c);
 	virtual		const char*		getConcreteTypeName() const				{	return "PxVehicleWheels"; }
-	virtual		bool			isKindOf(const char* name)	const		{	return !::strcmp("PxVehicleWheels", name) || PxBase::isKindOf(name); }
+	virtual		bool			isKindOf(const char* name)	const		{	PX_IS_KIND_OF(name, "PxVehicleWheels", PxBase); }
 	virtual		void			preExportDataReset() {}
 	virtual		void			exportExtraData(PxSerializationContext&);	
 				void			importExtraData(PxDeserializationContext&);

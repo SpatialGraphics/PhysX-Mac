@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -273,5 +273,5 @@ bool GeomOverlapCallback_MeshMesh(GU_OVERLAP_FUNC_PARAMS)
 	AnyHitReportCallback callback;
 
 	// PT: ...so we don't need a table like for the other ops, just go straight to BV4
-	return intersectMeshVsMesh_BV4(callback, *tm0, *tm1, pose0, pose1, meshGeom0.scale, meshGeom1.scale, PxMeshMeshQueryFlag::eDEFAULT);
+	return intersectMeshVsMesh_BV4(callback, *tm0, pose0, meshGeom0.scale, *tm1, pose1, meshGeom1.scale, PxMeshMeshQueryFlag::eDEFAULT, 0.0f);
 }

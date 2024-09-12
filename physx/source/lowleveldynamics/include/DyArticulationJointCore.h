@@ -22,16 +22,17 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
-#ifndef DV_ARTICULATION_JOINT_CORE_H
-#define DV_ARTICULATION_JOINT_CORE_H
+#ifndef DY_ARTICULATION_JOINT_CORE_H
+#define DY_ARTICULATION_JOINT_CORE_H
 
 #include "DyArticulationCore.h"
 #include "solver/PxSolverDefs.h"
 #include "PxArticulationJointReducedCoordinate.h"
+#include "CmSpatialVector.h"
 
 namespace physx
 {
@@ -42,12 +43,6 @@ namespace physx
 		PX_ALIGN_PREFIX(16)
 		struct ArticulationJointCore
 		{
-			//= ATTENTION! =====================================================================================
-			// Changing the data layout of this class breaks the binary serialization format.  See comments for 
-			// PX_BINARY_SERIAL_VERSION.  If a modification is required, please adjust the getBinaryMetaData 
-			// function.  If the modification is made on a custom branch, please change PX_BINARY_SERIAL_VERSION
-			// accordingly.
-			//==================================================================================================
 		public:
 
 			// PX_SERIALIZATION
@@ -101,21 +96,74 @@ namespace physx
 					motion[i] = PxArticulationMotion::eLOCKED;
 				}
 			}
-
-			PX_CUDA_CALLABLE bool setJointFrame(PxQuat& relativeQuat)
+			
+			PX_CUDA_CALLABLE void setJointFrame(Cm::UnAlignedSpatialVector* motionMatrix, 
+                                                const Cm::UnAlignedSpatialVector* jointAxis,
+                                                PxQuat& relativeQuat,
+												const PxU32 dofs)
 			{
 				if (jointDirtyFlag & ArticulationJointCoreDirtyFlag::eFRAME)
 				{
 					relativeQuat = (childPose.q * (parentPose.q.getConjugate())).getNormalized();
 
-					//ML: this way work in GPU
-					PxU8 flag = PxU8(ArticulationJointCoreDirtyFlag::eFRAME);
-					jointDirtyFlag &= ArticulationJointCoreDirtyFlags(~flag);
-				
-					return true;
-				}
+					computeMotionMatrix(motionMatrix, jointAxis, dofs);
 
-				return false;
+					jointDirtyFlag &= ~ArticulationJointCoreDirtyFlag::eFRAME;
+				}
+			}
+
+			PX_CUDA_CALLABLE PX_FORCE_INLINE void computeMotionMatrix(Cm::UnAlignedSpatialVector* motionMatrix,
+																	  const Cm::UnAlignedSpatialVector* jointAxis,
+																	  const PxU32 dofs)
+			{
+				const PxVec3 childOffset = -childPose.p;
+
+				switch (jointType)
+				{
+				case PxArticulationJointType::ePRISMATIC:
+				{
+					const Cm::UnAlignedSpatialVector& jJointAxis = jointAxis[0];
+					const PxVec3 u = (childPose.rotate(jJointAxis.bottom)).getNormalized();
+
+					motionMatrix[0] = Cm::UnAlignedSpatialVector(PxVec3(0.f), u);
+
+					PX_ASSERT(dofs == 1);
+
+					break;
+				}
+				case PxArticulationJointType::eREVOLUTE:
+				case PxArticulationJointType::eREVOLUTE_UNWRAPPED:
+				{
+					const Cm::UnAlignedSpatialVector& jJointAxis = jointAxis[0];
+					const PxVec3 u = (childPose.rotate(jJointAxis.top)).getNormalized();
+					const PxVec3 uXd = u.cross(childOffset);
+
+					motionMatrix[0] = Cm::UnAlignedSpatialVector(u, uXd);
+
+					break;
+				}
+				case PxArticulationJointType::eSPHERICAL:
+				{
+
+					for (PxU32 ind = 0; ind < dofs; ++ind)
+					{
+						const Cm::UnAlignedSpatialVector& jJointAxis = jointAxis[ind];
+						const PxVec3 u = (childPose.rotate(jJointAxis.top)).getNormalized();
+
+						const PxVec3 uXd = u.cross(childOffset);
+						motionMatrix[ind] = Cm::UnAlignedSpatialVector(u, uXd);
+					}
+
+					break;
+				}
+				case PxArticulationJointType::eFIX:
+				{
+					PX_ASSERT(dofs == 0);
+					break;
+				}
+				default:
+					break;
+				}
 			}
 
 			PX_CUDA_CALLABLE PX_FORCE_INLINE void operator=(ArticulationJointCore& other)
@@ -146,10 +194,6 @@ namespace physx
 				jointDirtyFlag = other.jointDirtyFlag;
 				jointType = other.jointType;
 			}
-
-			//Implementation is in DyFeatherstoneArticulation.cpp
-			void setJointFrame(	ArticulationJointCoreData& jointDatum, Cm::UnAlignedSpatialVector* motionMatrix, 
-								const Cm::UnAlignedSpatialVector* jointAxis, bool forceUpdate, PxQuat& relativeRot);
 
 			PX_FORCE_INLINE	void	setParentPose(const PxTransform& t)										{ parentPose = t;			jointDirtyFlag |= ArticulationJointCoreDirtyFlag::eFRAME;				}
 			PX_FORCE_INLINE	void	setChildPose(const PxTransform& t)										{ childPose = t;			jointDirtyFlag |= ArticulationJointCoreDirtyFlag::eFRAME;				}

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
       
@@ -40,7 +40,7 @@ class PxsContactManagerOutputIterator;
 namespace Sc
 {
 	class ShapeSimBase;
-	class Interaction;
+	class ElementSimInteraction;
 	class ActorSim;
 	
 	struct Contact
@@ -87,17 +87,18 @@ namespace Sc
 			};
 
 			ContactIterator() {}
-			explicit ContactIterator(Interaction** first, Interaction** last, PxsContactManagerOutputIterator& outputs): mCurrent(first), mLast(last), mOffset(0), mOutputs(&outputs)
+			explicit ContactIterator(ElementSimInteraction** first, ElementSimInteraction** last, PxsContactManagerOutputIterator& outputs): mCurrent(first), mLast(last), mOffset(0), mOutputs(&outputs)
 			{
-				if (!mCurrent)
+				if ((!first) || (!last) || (first == last))
 				{
+					mCurrent = NULL;
 					mLast = NULL;
 				}
 			}
 			Pair* getNextPair();			
 		private:
-			Interaction**					mCurrent;
-			Interaction**					mLast;
+			ElementSimInteraction**			mCurrent;
+			ElementSimInteraction**			mLast;
 			Pair							mCurrentPair;
 			PxU32							mOffset;
 			PxsContactManagerOutputIterator* mOutputs;

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 
 #include "ExtTetSplitting.h"
 #include "ExtUtilities.h"
@@ -262,7 +262,9 @@ namespace Ext
 		for (PxI32 i = startAt; i < 4; ++i)
 			if (list[i] == value)
 				return i;
-		return -1;
+
+		PX_ASSERT(false); // we should never reach this line
+		return 0;
 	}
 
 	//Counts how many times every corner is referenced by the specified set of edges - useful for corner classification
@@ -335,7 +337,7 @@ namespace Ext
 
 	//Splits all tets according to the specification in tetSubdivisionInfos. The resulting mesh will be watertight if the tetSubdivisionInfos are specified such
 	//that all tets sharing and edge will get the same point inserted on their corresponding edge
-	void split(PxArray<Tetrahedron>& tets, const PxArray<Vec3>& points, const PxArray<TetSubdivisionInfo>& tetSubdivisionInfos)
+	void split(PxArray<Tetrahedron>& tets, const PxArray<PxVec3d>& points, const PxArray<TetSubdivisionInfo>& tetSubdivisionInfos)
 	{
 		PxU32 originalNumTets = tets.size();
 		for (PxU32 i = 0; i < originalNumTets; ++i)
@@ -769,7 +771,7 @@ namespace Ext
 		}
 	}
 
-	void split(PxArray<Tetrahedron>& tets, const PxArray<Vec3>& points, const PxHashMap<PxU64, PxI32>& edgesToSplit)
+	void split(PxArray<Tetrahedron>& tets, const PxArray<PxVec3d>& points, const PxHashMap<PxU64, PxI32>& edgesToSplit)
 	{
 		PxArray<TetSubdivisionInfo> subdivisionInfos;
 		subdivisionInfos.resize(tets.size());

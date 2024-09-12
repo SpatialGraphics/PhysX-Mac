@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -33,13 +33,10 @@
 \brief Maximum sweep distance for scene sweeps. The distance parameter for sweep functions will be clamped to this value.
 The reason for this is GJK support cannot be evaluated near infinity. A viable alternative can be a sweep followed by an infinite raycast.
 
-@see PxScene
+\see PxScene
 */
 #define PX_MAX_SWEEP_DISTANCE 1e8f
 
-/** \addtogroup geomutils
-  @{
-*/
 
 #include "common/PxPhysXCommonConfig.h"
 #include "geometry/PxGeometryHit.h"
@@ -80,26 +77,13 @@ public:
 
 	\return Number of hits between the ray and the geometry object
 
-	@see PxGeomRaycastHit PxGeometry PxTransform
+	\see PxGeomRaycastHit PxGeometry PxTransform
 	*/
 	PX_PHYSX_COMMON_API static PxU32 raycast(	const PxVec3& origin, const PxVec3& unitDir,
 												const PxGeometry& geom, const PxTransform& pose,
 												PxReal maxDist, PxHitFlags hitFlags,
-												PxU32 maxHits, PxGeomRaycastHit* PX_RESTRICT rayHits, PxU32 stride, PxGeometryQueryFlags queryFlags = PxGeometryQueryFlag::eDEFAULT,
+												PxU32 maxHits, PxGeomRaycastHit* PX_RESTRICT rayHits, PxU32 stride = sizeof(PxGeomRaycastHit), PxGeometryQueryFlags queryFlags = PxGeometryQueryFlag::eDEFAULT,
 												PxRaycastThreadContext* threadContext = NULL);
-
-	/**
-	 * @brief Backward compatibility helper
-	 * @deprecated
-	 */
-	template<class HitT>
-	PX_DEPRECATED PX_FORCE_INLINE static PxU32 raycast(	const PxVec3& origin, const PxVec3& unitDir,
-														const PxGeometry& geom, const PxTransform& pose,
-														PxReal maxDist, PxHitFlags hitFlags,
-														PxU32 maxHits, HitT* PX_RESTRICT rayHits)
-	{
-		return raycast(origin, unitDir, geom, pose, maxDist, hitFlags, maxHits, rayHits, sizeof(HitT));
-	}
 
 	/**
 	\brief Overlap test for two geometry objects.
@@ -119,7 +103,7 @@ public:
 
 	\return True if the two geometry objects overlap
 
-	@see PxGeometry PxTransform
+	\see PxGeometry PxTransform
 	*/
 	PX_PHYSX_COMMON_API static bool overlap(const PxGeometry& geom0, const PxTransform& pose0,
 											const PxGeometry& geom1, const PxTransform& pose1,
@@ -149,7 +133,7 @@ public:
 
 	\return True if the swept geometry object geom0 hits the object geom1
 
-	@see PxGeomSweepHit PxGeometry PxTransform
+	\see PxGeomSweepHit PxGeometry PxTransform
 	*/
 	PX_PHYSX_COMMON_API static bool sweep(	const PxVec3& unitDir, const PxReal maxDist,
 											const PxGeometry& geom0, const PxTransform& pose0,
@@ -188,7 +172,7 @@ public:
 	\param[in] queryFlags	Optional flags controlling the query.
 	\return True if the MTD has successfully been computed, i.e. if objects do overlap.
 
-	@see PxGeometry PxTransform
+	\see PxGeometry PxTransform
 	*/
 	PX_PHYSX_COMMON_API static bool	computePenetration(	PxVec3& direction, PxF32& depth,
 														const PxGeometry& geom0, const PxTransform& pose0,
@@ -210,7 +194,7 @@ public:
 	\param[in] queryFlags		Optional flags controlling the query.
 	\return Square distance between the point and the geom object, or 0.0 if the point is inside the object, or -1.0 if an error occured (geometry type is not supported, or invalid pose)
 
-	@see PxGeometry PxTransform
+	\see PxGeometry PxTransform
 	*/
 	PX_PHYSX_COMMON_API static PxReal pointDistance(const PxVec3& point, const PxGeometry& geom, const PxTransform& pose,
 													PxVec3* closestPoint=NULL, PxU32* closestIndex=NULL,
@@ -226,22 +210,9 @@ public:
 	\param[in] inflation	Scale factor for computed bounds. The geom's extents are multiplied by this value.
 	\param[in] queryFlags	Optional flags controlling the query.
 
-	@see PxGeometry PxTransform
+	\see PxGeometry PxTransform
 	*/
 	PX_PHYSX_COMMON_API static void	computeGeomBounds(PxBounds3& bounds, const PxGeometry& geom, const PxTransform& pose, float offset=0.0f, float inflation=1.0f, PxGeometryQueryFlags queryFlags = PxGeometryQueryFlag::eDEFAULT);
-
-	/**
-	\brief get the bounds for a geometry object
-
-	\param[in] geom			The geometry object
-	\param[in] pose			Pose of the geometry object
-	\param[in] inflation	Scale factor for computed world bounds. Box extents are multiplied by this value.
-	\return The bounds of the object
-
-	@see PxGeometry PxTransform
-	@deprecated
-	*/
-	PX_DEPRECATED PX_PHYSX_COMMON_API static PxBounds3 getWorldBounds(const PxGeometry& geom, const PxTransform& pose, float inflation=1.01f);
 
 	/**
 	\brief Generate collision contacts between a convex geometry and a single triangle
@@ -265,7 +236,7 @@ public:
 	\param[in] geom	The geometry object.
 	\return True if geometry is valid.
 
-	@see PxGeometry
+	\see PxGeometry
 	*/
 	PX_PHYSX_COMMON_API static bool isValid(const PxGeometry& geom);
 };
@@ -274,5 +245,4 @@ public:
 }
 #endif
 
-/** @} */
 #endif

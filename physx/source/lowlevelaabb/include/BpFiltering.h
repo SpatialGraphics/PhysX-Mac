@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -48,15 +48,14 @@ namespace physx
 	If dynamics shapes are assigned group values greater than or equal to eDYNAMICS_BASE then
 	they are allowed to generate broadphase overlaps with statics, and other dynamic shapes provided 
 	they have different group values.
-	@see AABBManager::createVolume
+	\see AABBManager::createVolume
 	*/
 	struct FilterGroup
 	{
 		enum Enum
 		{
 			eSTATICS		= 0,
-			ePARTICLES		= 1,
-			eDYNAMICS_BASE	= 2,
+			eDYNAMICS_BASE	= 1,
 #ifdef BP_USE_AGGREGATE_GROUP_TAIL
 			eAGGREGATE_BASE	= 0xfffffffe,
 #endif

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -34,6 +34,7 @@
 #include "GuCCDSweepConvexMesh.h"
 #include "GuGJKType.h"
 #include "geometry/PxSphereGeometry.h"
+#include "geometry/PxCustomGeometry.h"
 
 //#define USE_VIRTUAL_GJK
 
@@ -65,7 +66,7 @@ static bool virtualGjkRaycastPenetration(const GjkConvex& a, const GjkConvex& b,
 #endif
 
 template<class ConvexA, class ConvexB>
-static PX_FORCE_INLINE PxReal CCDSweep(	ConvexA& a, ConvexB& b, const PxTransform& transform0, const PxTransform& transform1, const PxTransform& lastTm0, const PxTransform& lastTm1,
+static PX_FORCE_INLINE PxReal CCDSweep(	ConvexA& a, ConvexB& b, const PxTransform32& transform0, const PxTransform32& transform1, const PxTransform32& lastTm0, const PxTransform32& lastTm1,
 										const aos::FloatV& toiEstimate, PxVec3& worldPoint, PxVec3& worldNormal, PxReal inflation = 0.0f)
 {
 	PX_UNUSED(toiEstimate); //KS - TODO - can we use this again?
@@ -81,9 +82,9 @@ static PX_FORCE_INLINE PxReal CCDSweep(	ConvexA& a, ConvexB& b, const PxTransfor
 	const PxTransformV tr1(p1, q1);
 
 	const PxMatTransformV aToB(tr1.transformInv(tr0));
-
-	const Vec3V trans0p = V3LoadU(transform0.p);
-	const Vec3V trans1p = V3LoadU(transform1.p);
+	
+	const Vec3V trans0p = V3LoadA(transform0.p);
+	const Vec3V trans1p = V3LoadA(transform1.p);
 	const Vec3V trA = V3Sub(trans0p, p0);
 	const Vec3V trB = V3Sub(trans1p, p1);
 	const Vec3V relTr = tr1.rotateInv(V3Sub(trB, trA));
@@ -137,6 +138,36 @@ static PxReal SweepGeomGeom(GU_SWEEP_METHOD_ARGS)
 	return CCDSweep(geom0, geom1, transform0, transform1, lastTm0, lastTm1, FLoad(toiEstimate), worldPoint, worldNormal, restDistance+getRadius<Geom0>(g0)+getRadius<Geom1>(g1) );
 }
 
+static PxReal SweepAnyShapeCustom(GU_SWEEP_METHOD_ARGS)
+{
+	PX_UNUSED(fastMovingThreshold);
+	PX_UNUSED(toiEstimate);
+	PX_UNUSED(restDistance);
+
+	const PxGeometry& g0 = *shape0.mGeometry;
+	const PxGeometry& g1 = *shape1.mGeometry;
+
+	PX_ASSERT(g1.getType() == PxGeometryType::eCUSTOM);
+
+	const PxVec3 trA = transform0.p - lastTm0.p;
+	const PxVec3 trB = transform1.p - lastTm1.p;
+
+	const PxVec3 relTr = trA - trB;
+	PxVec3 unitDir = relTr;
+	const PxReal length = unitDir.normalize();
+
+	PxGeomSweepHit sweepHit;
+
+	if (!static_cast<const PxCustomGeometry&>(g1).callbacks->sweep(unitDir, length, g1, lastTm1, g0, lastTm0, sweepHit, PxHitFlag::eDEFAULT, 0.0f, NULL))
+		return PX_MAX_REAL;
+
+	worldNormal = sweepHit.normal;
+	worldPoint = sweepHit.position;
+	outCCDFaceIndex = sweepHit.faceIndex;
+
+	return sweepHit.distance / length;
+}
+
 typedef PxReal (*SweepMethod) (GU_SWEEP_METHOD_ARGS);
 
 PxReal SweepAnyShapeHeightfield(GU_SWEEP_METHOD_ARGS);
@@ -156,7 +187,7 @@ SweepMethod g_SweepMethodTable[][PxGeometryType::eGEOMETRY_COUNT] =
 		SweepAnyShapeMesh,							//PxGeometryType::eTRIANGLEMESH
 		SweepAnyShapeHeightfield,					//PxGeometryType::eHEIGHTFIELD
 		UnimplementedSweep,							//PxGeometryType::eHAIRSYSTEM
-		UnimplementedSweep,							//PxGeometryType::eCUSTOM
+		SweepAnyShapeCustom,						//PxGeometryType::eCUSTOM
 	},
 
 	//PxGeometryType::ePLANE
@@ -186,7 +217,7 @@ SweepMethod g_SweepMethodTable[][PxGeometryType::eGEOMETRY_COUNT] =
 		SweepAnyShapeMesh,							//PxGeometryType::eTRIANGLEMESH
 		SweepAnyShapeHeightfield,					//PxGeometryType::eHEIGHTFIELD
 		UnimplementedSweep,							//PxGeometryType::eHAIRSYSTEM
-		UnimplementedSweep,							//PxGeometryType::eCUSTOM
+		SweepAnyShapeCustom,						//PxGeometryType::eCUSTOM
 	},
 
 	//PxGeometryType::eBOX
@@ -201,7 +232,7 @@ SweepMethod g_SweepMethodTable[][PxGeometryType::eGEOMETRY_COUNT] =
 		SweepAnyShapeMesh,							//PxGeometryType::eTRIANGLEMESH
 		SweepAnyShapeHeightfield,					//PxGeometryType::eHEIGHTFIELD
 		UnimplementedSweep,							//PxGeometryType::eHAIRSYSTEM
-		UnimplementedSweep,							//PxGeometryType::eCUSTOM
+		SweepAnyShapeCustom,						//PxGeometryType::eCUSTOM
 	},
 
 	//PxGeometryType::eCONVEXMESH
@@ -216,7 +247,7 @@ SweepMethod g_SweepMethodTable[][PxGeometryType::eGEOMETRY_COUNT] =
 		SweepAnyShapeMesh,							//PxGeometryType::eTRIANGLEMESH
 		SweepAnyShapeHeightfield,					//PxGeometryType::eHEIGHTFIELD
 		UnimplementedSweep,							//PxGeometryType::eHAIRSYSTEM
-		UnimplementedSweep,							//PxGeometryType::eCUSTOM
+		SweepAnyShapeCustom,						//PxGeometryType::eCUSTOM
 	},
 
 	//PxGeometryType::ePARTICLESYSTEM
@@ -261,7 +292,7 @@ SweepMethod g_SweepMethodTable[][PxGeometryType::eGEOMETRY_COUNT] =
 		UnimplementedSweep,							//PxGeometryType::eTRIANGLEMESH
 		UnimplementedSweep,							//PxGeometryType::eHEIGHTFIELD
 		UnimplementedSweep,							//PxGeometryType::eHAIRSYSTEM
-		UnimplementedSweep,							//PxGeometryType::eCUSTOM
+		SweepAnyShapeCustom,						//PxGeometryType::eCUSTOM
 	},
 
 	//PxGeometryType::eHEIGHTFIELD
@@ -276,7 +307,7 @@ SweepMethod g_SweepMethodTable[][PxGeometryType::eGEOMETRY_COUNT] =
 		0,											//PxGeometryType::eTRIANGLEMESH
 		UnimplementedSweep,							//PxGeometryType::eHEIGHTFIELD
 		UnimplementedSweep,							//PxGeometryType::eHAIRSYSTEM
-		UnimplementedSweep,							//PxGeometryType::eCUSTOM
+		SweepAnyShapeCustom,						//PxGeometryType::eCUSTOM
 	},
 
 	//PxGeometryType::eHAIRSYSTEM
@@ -306,7 +337,7 @@ SweepMethod g_SweepMethodTable[][PxGeometryType::eGEOMETRY_COUNT] =
 		0,											//PxGeometryType::eTRIANGLEMESH
 		0,											//PxGeometryType::eHEIGHTFIELD
 		0,											//PxGeometryType::eHAIRSYSTEM
-		UnimplementedSweep,							//PxGeometryType::eCUSTOM
+		SweepAnyShapeCustom,						//PxGeometryType::eCUSTOM
 	},
 };
 PX_COMPILE_TIME_ASSERT(sizeof(g_SweepMethodTable) / sizeof(g_SweepMethodTable[0]) == PxGeometryType::eGEOMETRY_COUNT);

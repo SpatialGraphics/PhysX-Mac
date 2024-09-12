@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -38,7 +38,7 @@
 // PX_SERIALIZATION
 #include "foundation/PxErrors.h"
 //~PX_SERIALIZATION
-#include "omnipvd/OmniPvdPxSampler.h"
+#include "omnipvd/NpOmniPvdSetData.h"
 
 namespace physx
 {
@@ -67,19 +67,19 @@ public:
 	// PxActor
 					void					removeShapes(PxSceneQuerySystem* sqManager);
 	virtual			PxActorType::Enum		getType() const = 0;
-	virtual			PxBounds3				getWorldBounds(float inflation=1.01f) const	PX_OVERRIDE;
-	virtual			void					setActorFlag(PxActorFlag::Enum flag, bool value)	PX_OVERRIDE;
-	virtual			void					setActorFlags(PxActorFlags inFlags)	PX_OVERRIDE;
+	virtual			PxBounds3				getWorldBounds(float inflation=1.01f) const	PX_OVERRIDE PX_FINAL;
+	virtual			void					setActorFlag(PxActorFlag::Enum flag, bool value)	PX_OVERRIDE PX_FINAL;
+	virtual			void					setActorFlags(PxActorFlags inFlags)	PX_OVERRIDE PX_FINAL;
 	//~PxActor
 
 	// PxRigidActor
-	virtual			PxU32					getInternalActorIndex() const	PX_OVERRIDE;
+	virtual			PxU32					getInternalActorIndex() const	PX_OVERRIDE PX_FINAL;
 	virtual			bool					attachShape(PxShape& s)	PX_OVERRIDE;
 	virtual			void					detachShape(PxShape& s, bool wakeOnLostTouch)	PX_OVERRIDE;
-	virtual			PxU32					getNbShapes() const	PX_OVERRIDE;
-	virtual			PxU32					getShapes(PxShape** buffer, PxU32 bufferSize, PxU32 startIndex=0) const	PX_OVERRIDE;
-	virtual			PxU32					getNbConstraints() const	PX_OVERRIDE;
-	virtual			PxU32					getConstraints(PxConstraint** userBuffer, PxU32 bufferSize, PxU32 startIndex=0) const	PX_OVERRIDE;
+	virtual			PxU32					getNbShapes() const	PX_OVERRIDE PX_FINAL;
+	virtual			PxU32					getShapes(PxShape** buffer, PxU32 bufferSize, PxU32 startIndex=0) const	PX_OVERRIDE PX_FINAL;
+	virtual			PxU32					getNbConstraints() const	PX_OVERRIDE PX_FINAL;
+	virtual			PxU32					getConstraints(PxConstraint** userBuffer, PxU32 bufferSize, PxU32 startIndex=0) const	PX_OVERRIDE PX_FINAL;
 	//~PxRigidActor
 											NpRigidActorTemplate(PxType concreteType, PxBaseFlags baseFlags, NpType::Enum type);
 
@@ -92,14 +92,13 @@ public:
 
 					void					updateShaderComs();
 
-	// index for the NpScene rigid dynamic or static array
+	// index into the NpScene rigid dynamic (mRigidDynamics) or static array (mRigidStatics)
 	// PT: note that this index changes during the lifetime of the object, e.g. when another object
 	// is removed and swaps happen in the scene's mRigidStatics/mRigidDynamics arrays.
 	PX_FORCE_INLINE PxU32					getRigidActorArrayIndex()			const	{ return NpBase::mFreeSlot;		}
 	PX_FORCE_INLINE void					setRigidActorArrayIndex(PxU32 index)		{ NpBase::mFreeSlot = index;	}
-//	PX_FORCE_INLINE PxU32					getRigidActorArrayIndex()			const	{ return mIndex;				}
-//	PX_FORCE_INLINE void					setRigidActorArrayIndex(PxU32 index)		{ mIndex = index;				}
-
+	// PT: ID from mRigidActorIndexPool. Contrary to getRigidActorArrayIndex(), this index uses the same source for statics/dynamics/links
+	// (yes, it also includes articulation links). On the other hand it is constant for the lifetime of the actor.
 	PX_FORCE_INLINE PxU32					getRigidActorSceneIndex()			const	{ return NpBase::getBaseIndex();	}
 	PX_FORCE_INLINE void					setRigidActorSceneIndex(PxU32 index)		{ NpBase::setBaseIndex(index);		}
 
@@ -115,10 +114,6 @@ protected:
 	PX_FORCE_INLINE void					setActorSimFlag(bool value);
 
 					NpShapeManager			mShapeManager;
-					// PT: note that this index changes during the lifetime of the object, e.g. when another object
-					// is removed and swaps happen in the scene's mRigidStatics/mRigidDynamics arrays.
-//					PxU32					mIndex;    // index for the NpScene rigid dynamic or static array
-					// PT: TODO: reduce padding
 };
 
 // PX_SERIALIZATION
@@ -207,7 +202,7 @@ void NpRigidActorTemplate<APIClass>::removeShapes(PxSceneQuerySystem* sqManager)
 {
 	if(mShapeManager.getPruningStructure())
 	{
-		PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, __FILE__, __LINE__, "PxRigidActor::release: Actor is part of a pruning structure, pruning structure is now invalid!");
+		PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, PX_FL, "PxRigidActor::release: Actor is part of a pruning structure, pruning structure is now invalid!");
 		mShapeManager.getPruningStructure()->invalidate(this);
 	}
 
@@ -230,13 +225,13 @@ bool NpRigidActorTemplate<APIClass>::attachShape(PxShape& shape)
 	// invalidate the pruning structure if the actor bounds changed
 	if (mShapeManager.getPruningStructure())
 	{
-		PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, __FILE__, __LINE__, "PxRigidActor::attachShape: Actor is part of a pruning structure, pruning structure is now invalid!");
+		PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, PX_FL, "PxRigidActor::attachShape: Actor is part of a pruning structure, pruning structure is now invalid!");
 		mShapeManager.getPruningStructure()->invalidate(this);
 	}
 
 	mShapeManager.attachShape(npShape, *this);
 
-	OMNI_PVD_ADD(actor, shapes, static_cast<PxActor&>(*this), shape)
+	OMNI_PVD_ADD(OMNI_PVD_CONTEXT_HANDLE, PxRigidActor, shapes, static_cast<PxRigidActor&>(*this), shape)
 
 	return true;
 }
@@ -249,17 +244,17 @@ void NpRigidActorTemplate<APIClass>::detachShape(PxShape& shape, bool wakeOnLost
 
 	PX_CHECK_SCENE_API_WRITE_FORBIDDEN(npScene, "PxRigidActor::detachShape() not allowed while simulation is running. Call will be ignored.")
 
-	OMNI_PVD_REMOVE(actor, shapes, static_cast<PxActor&>(*this), shape)	//this needs to happen before the actual detach happens below, because that detach might actually delete the shape, which invalidates the shape handle.
+	OMNI_PVD_REMOVE(OMNI_PVD_CONTEXT_HANDLE, PxRigidActor, shapes, static_cast<PxRigidActor&>(*this), shape)	//this needs to happen before the actual detach happens below, because that detach might actually delete the shape, which invalidates the shape handle.
 
 	if (mShapeManager.getPruningStructure())
 	{
-		PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, __FILE__, __LINE__, "PxRigidActor::detachShape: Actor is part of a pruning structure, pruning structure is now invalid!");
+		PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, PX_FL, "PxRigidActor::detachShape: Actor is part of a pruning structure, pruning structure is now invalid!");
 		mShapeManager.getPruningStructure()->invalidate(this);
 	}
 
 	if(!mShapeManager.detachShape(static_cast<NpShape&>(shape), *this, wakeOnLostTouch))
 	{
-		PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, __FILE__, __LINE__, "PxRigidActor::detachShape: shape is not attached to this actor!");
+		PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, PX_FL, "PxRigidActor::detachShape: shape is not attached to this actor!");
 	}
 }
 

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
@@ -42,13 +42,11 @@ namespace vehicle2
 //ATTRIBUTE REGISTRATION
 ///////////////////////////////
 
-PxVehiclePvdAttributeHandles* PxVehiclePvdAttributesCreate(PxAllocatorCallback& allocator, OmniPvdWriter* omniWriter)
+PxVehiclePvdAttributeHandles* PxVehiclePvdAttributesCreate(PxAllocatorCallback& allocator, OmniPvdWriter& omniWriter)
 {
-	PX_CHECK_AND_RETURN_NULL(omniWriter, "PxVehiclePvdAttributesCreate: omniWriter must be a pointer to a valid OmniPvdWriter instance");
-
 	PxVehiclePvdAttributeHandles* attributeHandles = 
 		reinterpret_cast<PxVehiclePvdAttributeHandles*>(
-	    allocator.allocate(sizeof(PxVehiclePvdAttributeHandles), "PxVehiclePvdAttributeHandles", __FILE__, __LINE__));
+	    allocator.allocate(sizeof(PxVehiclePvdAttributeHandles), "PxVehiclePvdAttributeHandles", PX_FL));
 	PxMemZero(attributeHandles, sizeof(PxVehiclePvdAttributeHandles));
 
 	//Rigid body
@@ -63,6 +61,7 @@ PxVehiclePvdAttributeHandles* PxVehiclePvdAttributesCreate(PxAllocatorCallback& 
 	attributeHandles->brakeCommandResponseParams = registerBrakeResponseParams(omniWriter);
 	attributeHandles->steerCommandResponseStates = registerSteerResponseStates(omniWriter);
 	attributeHandles->brakeCommandResponseStates = registerBrakeResponseStates(omniWriter);
+	attributeHandles->ackermannParams = registerAckermannParams(omniWriter);
 
 	//Wheel attachment
 	attributeHandles->wheelParams = registerWheelParams(omniWriter);
@@ -100,13 +99,16 @@ PxVehiclePvdAttributeHandles* PxVehiclePvdAttributesCreate(PxAllocatorCallback& 
 	//Engine drivetrain
 	attributeHandles->engineDriveCommandState = registerEngineDriveCommandState(omniWriter);
 	attributeHandles->engineDriveTransmissionCommandState = registerEngineDriveTransmissionCommandState(omniWriter);
+	attributeHandles->tankDriveTransmissionCommandState = registerTankDriveTransmissionCommandState(omniWriter,
+		attributeHandles->engineDriveTransmissionCommandState.CH);
 	attributeHandles->clutchCommandResponseParams = registerClutchResponseParams(omniWriter);
 	attributeHandles->clutchParams = registerClutchParams(omniWriter);
 	attributeHandles->engineParams = registerEngineParams(omniWriter);
 	attributeHandles->gearboxParams = registerGearboxParams(omniWriter);
 	attributeHandles->autoboxParams = registerAutoboxParams(omniWriter);
 	attributeHandles->multiwheelDiffParams = registerMultiWheelDiffParams(omniWriter);
-	attributeHandles->fourwheelDiffParams = registerFourWheelDiffParams(omniWriter);
+	attributeHandles->fourwheelDiffParams = registerFourWheelDiffParams(omniWriter, attributeHandles->multiwheelDiffParams.CH);
+	attributeHandles->tankDiffParams = registerTankDiffParams(omniWriter, attributeHandles->multiwheelDiffParams.CH);
 	attributeHandles->clutchResponseState = registerClutchResponseState(omniWriter);
 	attributeHandles->throttleResponseState = registerThrottleResponseState(omniWriter);
 	attributeHandles->engineState = registerEngineState(omniWriter);
@@ -127,6 +129,7 @@ PxVehiclePvdAttributeHandles* PxVehiclePvdAttributesCreate(PxAllocatorCallback& 
 	//Physx rigid actor
 	attributeHandles->physxRoadGeometryQueryParams = registerPhysXRoadGeometryQueryParams(omniWriter);
 	attributeHandles->physxRigidActor = registerPhysXRigidActor(omniWriter);
+	attributeHandles->physxSteerState = registerPhysXSteerState(omniWriter);
 	
 	//Vehicle
 	attributeHandles->vehicle = registerVehicle(omniWriter);
@@ -138,12 +141,9 @@ PxVehiclePvdAttributeHandles* PxVehiclePvdAttributesCreate(PxAllocatorCallback& 
 //ATTRIBUTE DESTRUCTION
 ///////////////////////////////
 
-void PxVehiclePvdAttributesRelease(PxAllocatorCallback& allocator, OmniPvdWriter* omniWriter, PxVehiclePvdAttributeHandles* attributeHandles)
+void PxVehiclePvdAttributesRelease(PxAllocatorCallback& allocator, PxVehiclePvdAttributeHandles& attributeHandles)
 {
-	PX_CHECK_AND_RETURN(omniWriter, "PxVehiclePvdAttributesRelease: omniWriter must be a pointer to a valid OmniPvdWriter instance");
-	PX_CHECK_AND_RETURN(attributeHandles, "PxVehiclePvdAttributesRelease: attributeHandles must be a pointer to a valid PxVehiclePvdAttributeHandles instance");
-	PX_UNUSED(omniWriter);
-	allocator.deallocate(attributeHandles);
+	allocator.deallocate(&attributeHandles);
 }
 
 ////////////////////////////////////////
@@ -152,14 +152,9 @@ void PxVehiclePvdAttributesRelease(PxAllocatorCallback& allocator, OmniPvdWriter
 
 PxVehiclePvdObjectHandles* PxVehiclePvdObjectCreate
 (const PxU32 nbWheels, const PxU32 nbAntirolls, const PxU32 maxNbPhysXMaterialFrictions,
- const OmniPvdContextHandle contextHandle, const PxVehiclePvdAttributeHandles& attributeHandles, OmniPvdWriter* omniWriter,
+ const OmniPvdContextHandle contextHandle,
  PxAllocatorCallback& allocator)
 {
-	PX_CHECK_AND_RETURN_NULL(omniWriter, "PxVehiclePvdObjectCreate: omniWriter must be a pointer to a valid OmniPvdWriter instance");
-
-	PX_UNUSED(omniWriter);
-	PX_UNUSED(attributeHandles);
-
 	const PxU32 byteSize = 
 		sizeof(PxVehiclePvdObjectHandles) + 
 		sizeof(OmniPvdObjectHandle)*nbWheels*(
@@ -189,12 +184,13 @@ PxVehiclePvdObjectHandles* PxVehiclePvdObjectCreate
 			1 +								//OmniPvdObjectHandle* physxConstraintStateOHs;
 			1 +								//OmniPvdObjectHandle* physxRoadGeomStateOHs;
 			1 +								//OmniPvdObjectHandle* physxMaterialFrictionSetOHs;
-			maxNbPhysXMaterialFrictions) +	//OmniPvdObjectHandle* physxMaterialFrictionOHs;
+			maxNbPhysXMaterialFrictions +   //OmniPvdObjectHandle* physxMaterialFrictionOHs;
+			1) +	                        //OmniPvdObjectHandle* physxRoadGeomQueryFilterDataOHs;
 		sizeof(OmniPvdObjectHandle)*nbAntirolls*(
 			1);								//OmniPvdObjectHandle* antiRollParamOHs
 		 
 	
-	PxU8* buffer = reinterpret_cast<PxU8*>(allocator.allocate(byteSize, "PxVehiclePvdObjectHandles", __FILE__, __LINE__));
+	PxU8* buffer = reinterpret_cast<PxU8*>(allocator.allocate(byteSize, "PxVehiclePvdObjectHandles", PX_FL));
 #if PX_ENABLE_ASSERTS
 	PxU8* start = buffer;
 #endif
@@ -262,6 +258,8 @@ PxVehiclePvdObjectHandles* PxVehiclePvdObjectCreate
 			objectHandles->physxMaterialFrictionOHs = reinterpret_cast<OmniPvdObjectHandle*>(buffer);
 			buffer += sizeof(OmniPvdObjectHandle)*nbWheels*maxNbPhysXMaterialFrictions;
 		}
+		objectHandles->physxRoadGeomQueryFilterDataOHs = reinterpret_cast<OmniPvdObjectHandle*>(buffer);
+		buffer += sizeof(OmniPvdObjectHandle)*nbWheels;
 	}
 
 	if(nbAntirolls != 0)
@@ -286,169 +284,156 @@ PxVehiclePvdObjectHandles* PxVehiclePvdObjectCreate
 ////////////////////////////////////
 
 PX_FORCE_INLINE void destroyObject
-(OmniPvdWriter* omniWriter, OmniPvdContextHandle ch,
+(OmniPvdWriter& omniWriter, OmniPvdContextHandle ch,
  OmniPvdObjectHandle oh)
 {
+	// note: "0" needs to be replaced with a marker for invalid object handle as soon as PVD
+	//       provides it (and PxVehiclePvdObjectCreate needs to initialize accordingly or
+	//       compile time assert that the value is 0 for now)
 	if(oh != 0)
-		omniWriter->destroyObject(ch, oh);
-}
-
-PX_FORCE_INLINE	void removeFromSet
-(OmniPvdWriter* omniWriter, OmniPvdContextHandle ch,
- OmniPvdObjectHandle setOwnerOH, OmniPvdAttributeHandle setAH, OmniPvdObjectHandle ohToRemove)
-{
-	if(ohToRemove != 0 && setOwnerOH != 0)
-		omniWriter->removeFromSetAttributeShallow(ch, setOwnerOH, setAH, reinterpret_cast<const uint8_t*>(&ohToRemove), sizeof(OmniPvdObjectHandle));
+		omniWriter.destroyObject(ch, oh);
 }
 
 void PxVehiclePvdObjectRelease
-(const PxVehiclePvdAttributeHandles& ah, 
- OmniPvdWriter* ow, PxAllocatorCallback& allocator, PxVehiclePvdObjectHandles* oh)
+(OmniPvdWriter& ow, PxAllocatorCallback& allocator, PxVehiclePvdObjectHandles& oh)
 {
-	PX_CHECK_AND_RETURN(ow, "PxVehiclePvdObjectRelease: omniWriter must be a pointer to a valid OmniPvdWriter instance");
-	PX_CHECK_AND_RETURN(oh, "PxVehiclePvdObjectRelease: objectHandles must be a pointer to a valid PxVehiclePvdObjectHandles instance");
-
-	const OmniPvdContextHandle ch = oh->contextHandle;
+	const OmniPvdContextHandle ch = oh.contextHandle;
 
 	//rigid body
-	destroyObject(ow, ch, oh->rigidBodyParamsOH);
-	destroyObject(ow, ch, oh->rigidBodyStateOH);
+	destroyObject(ow, ch, oh.rigidBodyParamsOH);
+	destroyObject(ow, ch, oh.rigidBodyStateOH);
 	
 	//susp state calc params
-	destroyObject(ow, ch, oh->suspStateCalcParamsOH);
+	destroyObject(ow, ch, oh.suspStateCalcParamsOH);
 
 	//controls
 	for(PxU32 i = 0; i < 2; i++)
 	{
-		removeFromSet(ow, ch, oh->vehicleOH, ah.vehicle.brakeResponseParamsSetAH, oh->brakeResponseParamOHs[i]);
-		destroyObject(ow, ch, oh->brakeResponseParamOHs[i]);
+		destroyObject(ow, ch, oh.brakeResponseParamOHs[i]);
 	}
-	destroyObject(ow, ch, oh->steerResponseParamsOH);
-	destroyObject(ow, ch, oh->brakeResponseStateOH);
-	destroyObject(ow, ch, oh->steerResponseStateOH);
+	destroyObject(ow, ch, oh.steerResponseParamsOH);
+	destroyObject(ow, ch, oh.brakeResponseStateOH);
+	destroyObject(ow, ch, oh.steerResponseStateOH);
+	destroyObject(ow, ch, oh.ackermannParamsOH);
 
 	//Wheel attachments
-	for(PxU32 i = 0; i < oh->nbWheels; i++)
+	for(PxU32 i = 0; i < oh.nbWheels; i++)
 	{
-		destroyObject(ow, ch, oh->wheelParamsOHs[i]);
-		destroyObject(ow, ch, oh->wheelActuationStateOHs[i]);
-		destroyObject(ow, ch, oh->wheelRigidBody1dStateOHs[i]);
-		destroyObject(ow, ch, oh->wheelLocalPoseStateOHs[i]);
-		destroyObject(ow, ch, oh->suspParamsOHs[i]);
-		destroyObject(ow, ch, oh->suspCompParamsOHs[i]);
-		destroyObject(ow, ch, oh->suspForceParamsOHs[i]);
-		destroyObject(ow, ch, oh->suspStateOHs[i]);
-		destroyObject(ow, ch, oh->suspCompStateOHs[i]);
-		destroyObject(ow, ch, oh->suspForceOHs[i]);
-		destroyObject(ow, ch, oh->tireParamsOHs[i]);
-		destroyObject(ow, ch, oh->tireDirectionStateOHs[i]);
-		destroyObject(ow, ch, oh->tireSpeedStateOHs[i]);
-		destroyObject(ow, ch, oh->tireSlipStateOHs[i]);
-		destroyObject(ow, ch, oh->tireStickyStateOHs[i]);
-		destroyObject(ow, ch, oh->tireGripStateOHs[i]);
-		destroyObject(ow, ch, oh->tireCamberStateOHs[i]);
-		destroyObject(ow, ch, oh->tireForceOHs[i]);
-		removeFromSet(ow, oh->vehicleOH, ch, ah.vehicle.wheelAttachmentSetAH, oh->wheelAttachmentOHs[i]);
-		destroyObject(ow, ch, oh->wheelAttachmentOHs[i]);
+		destroyObject(ow, ch, oh.wheelParamsOHs[i]);
+		destroyObject(ow, ch, oh.wheelActuationStateOHs[i]);
+		destroyObject(ow, ch, oh.wheelRigidBody1dStateOHs[i]);
+		destroyObject(ow, ch, oh.wheelLocalPoseStateOHs[i]);
+		destroyObject(ow, ch, oh.suspParamsOHs[i]);
+		destroyObject(ow, ch, oh.suspCompParamsOHs[i]);
+		destroyObject(ow, ch, oh.suspForceParamsOHs[i]);
+		destroyObject(ow, ch, oh.suspStateOHs[i]);
+		destroyObject(ow, ch, oh.suspCompStateOHs[i]);
+		destroyObject(ow, ch, oh.suspForceOHs[i]);
+		destroyObject(ow, ch, oh.tireParamsOHs[i]);
+		destroyObject(ow, ch, oh.tireDirectionStateOHs[i]);
+		destroyObject(ow, ch, oh.tireSpeedStateOHs[i]);
+		destroyObject(ow, ch, oh.tireSlipStateOHs[i]);
+		destroyObject(ow, ch, oh.tireStickyStateOHs[i]);
+		destroyObject(ow, ch, oh.tireGripStateOHs[i]);
+		destroyObject(ow, ch, oh.tireCamberStateOHs[i]);
+		destroyObject(ow, ch, oh.tireForceOHs[i]);
+		destroyObject(ow, ch, oh.wheelAttachmentOHs[i]);
 	}	
 
 	//Antiroll
-	for(PxU32 i = 0; i < oh->nbAntirolls; i++)
+	for(PxU32 i = 0; i < oh.nbAntirolls; i++)
 	{
-		removeFromSet(ow, ch, oh->vehicleOH, ah.vehicle.antiRollSetAH, oh->antiRollParamOHs[i]);
-		destroyObject(ow, ch, oh->antiRollParamOHs[i]);
+		destroyObject(ow, ch, oh.antiRollParamOHs[i]);
 	}
-	destroyObject(ow, ch, oh->antiRollTorqueOH);
+	destroyObject(ow, ch, oh.antiRollTorqueOH);
 
 	//direct drive
-	destroyObject(ow, ch, oh->directDriveCommandStateOH);
-	destroyObject(ow, ch, oh->directDriveTransmissionCommandStateOH);
-	destroyObject(ow, ch, oh->directDriveThrottleResponseParamsOH);
-	destroyObject(ow, ch, oh->directDriveThrottleResponseStateOH);
-	destroyObject(ow, ch, oh->directDrivetrainOH);
+	destroyObject(ow, ch, oh.directDriveCommandStateOH);
+	destroyObject(ow, ch, oh.directDriveTransmissionCommandStateOH);
+	destroyObject(ow, ch, oh.directDriveThrottleResponseParamsOH);
+	destroyObject(ow, ch, oh.directDriveThrottleResponseStateOH);
+	destroyObject(ow, ch, oh.directDrivetrainOH);
 
 	//engine drive
-	destroyObject(ow, ch, oh->engineDriveCommandStateOH);
-	destroyObject(ow, ch, oh->engineDriveTransmissionCommandStateOH);
-	destroyObject(ow, ch, oh->clutchResponseParamsOH);
-	destroyObject(ow, ch, oh->clutchParamsOH);
-	destroyObject(ow, ch, oh->engineParamsOH);
-	destroyObject(ow, ch, oh->gearboxParamsOH);
-	destroyObject(ow, ch, oh->autoboxParamsOH);
-	destroyObject(ow, ch, oh->multiWheelDiffParamsOH);
-	destroyObject(ow, ch, oh->fourWheelDiffParamsOH);
-	destroyObject(ow, ch, oh->clutchResponseStateOH);
-	destroyObject(ow, ch, oh->engineDriveThrottleResponseStateOH);
-	destroyObject(ow, ch, oh->engineStateOH);
-	destroyObject(ow, ch, oh->gearboxStateOH);
-	destroyObject(ow, ch, oh->autoboxStateOH);
-	destroyObject(ow, ch, oh->diffStateOH);
-	destroyObject(ow, ch, oh->clutchSlipStateOH);
-	destroyObject(ow, ch, oh->engineDrivetrainOH);
+	destroyObject(ow, ch, oh.engineDriveCommandStateOH);
+	destroyObject(ow, ch, oh.engineDriveTransmissionCommandStateOH);
+	destroyObject(ow, ch, oh.clutchResponseParamsOH);
+	destroyObject(ow, ch, oh.clutchParamsOH);
+	destroyObject(ow, ch, oh.engineParamsOH);
+	destroyObject(ow, ch, oh.gearboxParamsOH);
+	destroyObject(ow, ch, oh.autoboxParamsOH);
+	destroyObject(ow, ch, oh.differentialParamsOH);
+	destroyObject(ow, ch, oh.clutchResponseStateOH);
+	destroyObject(ow, ch, oh.engineDriveThrottleResponseStateOH);
+	destroyObject(ow, ch, oh.engineStateOH);
+	destroyObject(ow, ch, oh.gearboxStateOH);
+	destroyObject(ow, ch, oh.autoboxStateOH);
+	destroyObject(ow, ch, oh.diffStateOH);
+	destroyObject(ow, ch, oh.clutchSlipStateOH);
+	destroyObject(ow, ch, oh.engineDrivetrainOH);
 
 	//PhysX Wheel attachments
-	for(PxU32 i = 0; i < oh->nbWheels; i++)
+	for(PxU32 i = 0; i < oh.nbWheels; i++)
 	{
-		destroyObject(ow, ch, oh->physxConstraintParamOHs[i]);
-		destroyObject(ow, ch, oh->physxWheelShapeOHs[i]);
-		destroyObject(ow, ch, oh->physxRoadGeomStateOHs[i]);
-		destroyObject(ow, ch, oh->physxConstraintStateOHs[i]);
-		for(PxU32 j = 0; j < oh->nbPhysXMaterialFrictions; j++)
+		destroyObject(ow, ch, oh.physxConstraintParamOHs[i]);
+		destroyObject(ow, ch, oh.physxWheelShapeOHs[i]);
+		destroyObject(ow, ch, oh.physxRoadGeomStateOHs[i]);
+		destroyObject(ow, ch, oh.physxConstraintStateOHs[i]);
+		for(PxU32 j = 0; j < oh.nbPhysXMaterialFrictions; j++)
 		{
-			const PxU32 id = i*oh->nbPhysXMaterialFrictions + j;
-			removeFromSet(ow, ch,
-				oh->physxWheelAttachmentOHs[i], ah.physxWheelAttachment.physxMaterialFrictionSetAH, 
-				oh->physxMaterialFrictionOHs[id]);
-			destroyObject(ow, ch, oh->physxMaterialFrictionOHs[id]);
+			const PxU32 id = i*oh.nbPhysXMaterialFrictions + j;
+			destroyObject(ow, ch, oh.physxMaterialFrictionOHs[id]);
 		}
-		removeFromSet(ow, ch, oh->vehicleOH, ah.vehicle.physxWheelAttachmentSetAH, oh->physxWheelAttachmentOHs[i]);
-		destroyObject(ow, ch, oh->physxWheelAttachmentOHs[i]);
+		destroyObject(ow, ch, oh.physxWheelAttachmentOHs[i]);
 	}	
 
 	//Physx rigid actor
-	destroyObject(ow, ch, oh->physxRoadGeomQueryParamOH);
-	destroyObject(ow, ch, oh->physxRigidActorOH);
+	destroyObject(ow, ch, oh.physxRoadGeomQueryParamOH);
+	destroyObject(ow, ch, oh.physxRoadGeomQueryDefaultFilterDataOH);
+	for (PxU32 i = 0; i < oh.nbWheels; i++)
+	{
+		destroyObject(ow, ch, oh.physxRoadGeomQueryFilterDataOHs[i]);
+		// safe even if not using per wheel filter data since it should hold the
+		// invalid handle value and thus destroyObject will do nothing
+	}
+	destroyObject(ow, ch, oh.physxRigidActorOH);
+	destroyObject(ow, ch, oh.physxSteerStateOH);
 
 	//Free the memory.
-	allocator.deallocate(oh);
+	allocator.deallocate(&oh);
 }
 
 #else //#if PX_SUPPORT_OMNI_PVD
 
-PxVehiclePvdAttributeHandles* PxVehiclePvdAttributesCreate(PxAllocatorCallback& allocator, OmniPvdWriter* omniWriter)
+PxVehiclePvdAttributeHandles* PxVehiclePvdAttributesCreate(PxAllocatorCallback& allocator, OmniPvdWriter& omniWriter)
 {
 	PX_UNUSED(allocator);
 	PX_UNUSED(omniWriter);
 	return NULL;
 }
 
-void PxVehiclePvdAttributesRelease(PxAllocatorCallback& allocator, OmniPvdWriter* omniWriter, PxVehiclePvdAttributeHandles* attributeHandles)
+void PxVehiclePvdAttributesRelease(PxAllocatorCallback& allocator, PxVehiclePvdAttributeHandles& attributeHandles)
 {
 	PX_UNUSED(allocator);
-	PX_UNUSED(omniWriter);
 	PX_UNUSED(attributeHandles);
 }
 
 PxVehiclePvdObjectHandles* PxVehiclePvdObjectCreate
 (const PxU32 nbWheels, const PxU32 nbAntirolls, const PxU32 maxNbPhysXMaterialFrictions,
- const PxU64 contextHandle, const PxVehiclePvdAttributeHandles& attributeHandles, OmniPvdWriter* omniWriter,
+ const PxU64 contextHandle,
  PxAllocatorCallback& allocator)
 {
 	PX_UNUSED(nbWheels);
 	PX_UNUSED(nbAntirolls);
 	PX_UNUSED(maxNbPhysXMaterialFrictions);
 	PX_UNUSED(contextHandle);
-	PX_UNUSED(attributeHandles);
-	PX_UNUSED(omniWriter);
 	PX_UNUSED(allocator);
 	return NULL;
 }
 
 void PxVehiclePvdObjectRelease
-(const PxVehiclePvdAttributeHandles& ah, 
- OmniPvdWriter* ow, PxAllocatorCallback& allocator, PxVehiclePvdObjectHandles* oh)
+(OmniPvdWriter& ow, PxAllocatorCallback& allocator, PxVehiclePvdObjectHandles& oh)
 {
-	PX_UNUSED(ah);
 	PX_UNUSED(ow);
 	PX_UNUSED(allocator);
 	PX_UNUSED(oh);
@@ -459,5 +444,3 @@ void PxVehiclePvdObjectRelease
 
 } // namespace vehicle2
 } // namespace physx
-
-/** @} */

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -35,10 +35,10 @@
 #include "ScShapeCore.h"
 #include "ScArticulationCore.h"
 #include "ScArticulationJointCore.h"
-#include "ScArticulationSensor.h"
 #include "ScArticulationTendonCore.h"
 #include "ScArticulationAttachmentCore.h"
 #include "ScArticulationTendonJointCore.h"
+#include "ScArticulationMimicJointCore.h"
 
 using namespace physx;
 using namespace Cm;
@@ -115,7 +115,7 @@ namespace
 			PX_DEF_BIN_METADATA_ITEM(stream,		ShadowPxsBodyCore, PxU8,		isFastMoving,			0)
 			PX_DEF_BIN_METADATA_ITEM(stream,		ShadowPxsBodyCore, PxU8,		disableGravity,			0)
 			PX_DEF_BIN_METADATA_ITEM(stream,		ShadowPxsBodyCore, PxU8,		lockFlags,				0)
-			PX_DEF_BIN_METADATA_ITEM(stream,		ShadowPxsBodyCore, PxU8,		kinematicLink,			0)
+			PX_DEF_BIN_METADATA_ITEM(stream,		ShadowPxsBodyCore, PxU8,		fixedBaseLink,			0)
 		}
 	};
 }
@@ -177,6 +177,10 @@ void Sc::ConstraintCore::getBinaryMetaData(PxOutputStream& stream)
 {   
 	PX_DEF_BIN_METADATA_TYPEDEF(stream,		PxConstraintFlags, PxU16)
 
+	PX_DEF_BIN_METADATA_CLASS(stream, PxConstraintResidual)
+	PX_DEF_BIN_METADATA_ITEM(stream, PxConstraintResidual, PxReal, positionIterationResidual, 0)
+	PX_DEF_BIN_METADATA_ITEM(stream, PxConstraintResidual, PxReal, velocityIterationResidual, 0)
+
 	PX_DEF_BIN_METADATA_CLASS(stream,		ConstraintCore)
 
 	PX_DEF_BIN_METADATA_ITEM(stream,		ConstraintCore, PxConstraintFlags,		mFlags,					0)
@@ -185,7 +189,6 @@ void Sc::ConstraintCore::getBinaryMetaData(PxOutputStream& stream)
 	PX_DEF_BIN_METADATA_ITEM(stream,		ConstraintCore, PxVec3,					mAppliedForce,			0)
 	PX_DEF_BIN_METADATA_ITEM(stream,		ConstraintCore, PxVec3,					mAppliedTorque,			0)
 	PX_DEF_BIN_METADATA_ITEM(stream,		ConstraintCore, PxConstraintConnector,	mConnector,				PxMetaDataFlag::ePTR)
-	PX_DEF_BIN_METADATA_ITEM(stream,		ConstraintCore, PxConstraintProject,	mProject,				PxMetaDataFlag::ePTR)
 	PX_DEF_BIN_METADATA_ITEM(stream,		ConstraintCore, PxConstraintSolverPrep,	mSolverPrep,			PxMetaDataFlag::ePTR)
 	PX_DEF_BIN_METADATA_ITEM(stream,		ConstraintCore, PxConstraintVisualize,	mVisualize,				PxMetaDataFlag::ePTR)
 	PX_DEF_BIN_METADATA_ITEM(stream,		ConstraintCore, PxU32,					mDataSize,				0)
@@ -193,6 +196,7 @@ void Sc::ConstraintCore::getBinaryMetaData(PxOutputStream& stream)
 	PX_DEF_BIN_METADATA_ITEM(stream,		ConstraintCore, PxReal,					mAngularBreakForce,		0)
 	PX_DEF_BIN_METADATA_ITEM(stream,		ConstraintCore, PxReal,					mMinResponseThreshold,	0)		
 	PX_DEF_BIN_METADATA_ITEM(stream,		ConstraintCore, ConstraintSim,			mSim,					PxMetaDataFlag::ePTR)
+	PX_DEF_BIN_METADATA_ITEM(stream,		ConstraintCore, PxConstraintResidual,	mResidual,				0)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -265,7 +269,7 @@ void Sc::ShapeCore::getBinaryMetaData(PxOutputStream& stream)
 
 	PX_DEF_BIN_METADATA_ITEM(stream,	ShapeCore, PxFilterData,	mSimulationFilterData,	0)
 	PX_DEF_BIN_METADATA_ITEM(stream,	ShapeCore, PxsShapeCore,	mCore,					0)
-	PX_DEF_BIN_METADATA_ITEM(stream,	ShapeCore, ShapeSim,		mSimAndIsExclusive,		PxMetaDataFlag::ePTR)
+	PX_DEF_BIN_METADATA_ITEM(stream,	ShapeCore, ShapeSim,		mExclusiveSim,			PxMetaDataFlag::ePTR)
 
 	PX_DEF_BIN_METADATA_ITEM(stream,		ShapeCore, char,		mName,					PxMetaDataFlag::ePTR)
 	PX_DEF_BIN_METADATA_EXTRA_NAME(stream,	ShapeCore,				mName,					0)
@@ -299,14 +303,17 @@ void Sc::ArticulationCore::getBinaryMetaData(PxOutputStream& stream)
 	PX_DEF_BIN_METADATA_ITEM(stream,	ArticulationCore, Dy::ArticulationCore,	mCore,					0)
 }
 
-void Sc::ArticulationSensorCore::getBinaryMetaData(PxOutputStream& stream)
+void Sc::ArticulationMimicJointCore::getBinaryMetaData(PxOutputStream& stream)
 {
-	PX_DEF_BIN_METADATA_CLASS(stream, ArticulationSensorCore)
+	PX_DEF_BIN_METADATA_CLASS(stream, ArticulationMimicJointCore)
 
-	PX_DEF_BIN_METADATA_ITEM(stream, ArticulationSensorCore, ArticulationSensorSim, mSim, PxMetaDataFlag::ePTR)
-	PX_DEF_BIN_METADATA_ITEM(stream, ArticulationSensorCore, PxTransform, mRelativePose, 0)
-	PX_DEF_BIN_METADATA_ITEM(stream, ArticulationSensorCore, PxU16, mFlags, 0)
+	PX_DEF_BIN_METADATA_ITEM(stream, ArticulationMimicJointCore, ArticulationMimicJointSim, mSim, PxMetaDataFlag::ePTR)
+	PX_DEF_BIN_METADATA_ITEM(stream, ArticulationMimicJointCore, PxU32, mAxisA, 0)
+	PX_DEF_BIN_METADATA_ITEM(stream, ArticulationMimicJointCore, PxU32, mAxisB, 0)
+	PX_DEF_BIN_METADATA_ITEM(stream, ArticulationMimicJointCore, PxReal, mGearRatio, 0)
+	PX_DEF_BIN_METADATA_ITEM(stream, ArticulationMimicJointCore, PxReal, mOffset, 0)
 }
+
 
 void Sc::ArticulationAttachmentCore::getBinaryMetaData(PxOutputStream& stream)
 {

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -34,18 +34,13 @@
 #include "NpRigidActorTemplate.h"
 #include "ScStaticCore.h"
 
+
 namespace physx
 {
 typedef NpRigidActorTemplate<PxRigidStatic> NpRigidStaticT;
 
 class NpRigidStatic : public NpRigidStaticT
 {
-//= ATTENTION! =====================================================================================
-// Changing the data layout of this class breaks the binary serialization format.  See comments for 
-// PX_BINARY_SERIAL_VERSION.  If a modification is required, please adjust the getBinaryMetaData 
-// function.  If the modification is made on a custom branch, please change PX_BINARY_SERIAL_VERSION
-// accordingly.
-//==================================================================================================
 public:
 // PX_SERIALIZATION
 											NpRigidStatic(PxBaseFlags baseFlags) : NpRigidStaticT(baseFlags), mCore(PxEmpty) {}
@@ -59,22 +54,22 @@ public:
 	virtual									~NpRigidStatic();
 
 	// PxActor
-	virtual			void					release()	PX_OVERRIDE;
-	virtual			PxActorType::Enum		getType() const PX_OVERRIDE	{ return PxActorType::eRIGID_STATIC; }
+	virtual			void					release()	PX_OVERRIDE PX_FINAL;
+	virtual			PxActorType::Enum		getType() const PX_OVERRIDE PX_FINAL	{ return PxActorType::eRIGID_STATIC; }
 	//~PxActor
 
 	// PxRigidActor
-	virtual			void 					setGlobalPose(const PxTransform& pose, bool wake)	PX_OVERRIDE;
+	virtual			void 					setGlobalPose(const PxTransform& pose, bool wake)	PX_OVERRIDE PX_FINAL;
 
-	virtual			PxTransform				getGlobalPose() const	PX_OVERRIDE;
+	virtual			PxTransform				getGlobalPose() const	PX_OVERRIDE PX_FINAL;
 	
 	//~PxRigidActor
 
 
 	// PT: I think these come from NpRigidActorTemplate
 	// PT: TODO: drop them eventually, they all re-route to NpActor now
-	virtual			void					switchToNoSim()	PX_OVERRIDE;
-	virtual			void					switchFromNoSim()	PX_OVERRIDE;
+	virtual			void					switchToNoSim()	PX_OVERRIDE PX_FINAL;
+	virtual			void					switchFromNoSim()	PX_OVERRIDE PX_FINAL;
 
 #if PX_CHECKED
 					bool					checkConstraintValidity() const;

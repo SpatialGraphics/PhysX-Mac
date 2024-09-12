@@ -22,18 +22,16 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
+#include "foundation/PxPreprocessor.h"
 #if PX_SUPPORT_PVD
 #include "common/PxProfileZone.h"
 #include "common/PxRenderBuffer.h"
 #include "PxParticleSystem.h"
 #include "PxPBDParticleSystem.h"
-//#include "PxFLIPParticleSystem.h"
-//#include "PxMPMParticleSystem.h"
-//#include "PxCustomParticleSystem.h"
 #include "PxPhysics.h"
 #include "PxConstraintDesc.h"
 #include "NpPvdSceneClient.h"
@@ -168,22 +166,15 @@ namespace
 			op(*static_cast<const PxArticulationLink*>(actor));
 			break;
 		case PxActorType::eSOFTBODY:
+#if PX_SUPPORT_GPU_PHYSX
 			op(*static_cast<const PxSoftBody*>(actor));
+#endif
 			break;
 		case PxActorType::eFEMCLOTH:
 			//op(*static_cast<const PxFEMCloth*>(actor));
 			break;
 		case PxActorType::ePBD_PARTICLESYSTEM:
 			op(*static_cast<const PxPBDParticleSystem*>(actor));
-			break;
-		case PxActorType::eFLIP_PARTICLESYSTEM:
-			//op(*static_cast<const PxFLIPParticleSystem*>(actor));
-			break;
-		case PxActorType::eMPM_PARTICLESYSTEM:
-			//op(*static_cast<const PxMPMParticleSystem*>(actor));
-			break;
-		case PxActorType::eCUSTOM_PARTICLESYSTEM:
-			//op(*static_cast<const PxCustomParticleSystem*>(actor));
 			break;
 		case PxActorType::eHAIRSYSTEM:
 			//op(*static_cast<const PxHairSystem*>(actor));
@@ -202,36 +193,38 @@ namespace
 			PX_NOCOPY(PvdConstraintVisualizer)
 		public:
 			physx::pvdsdk::PvdUserRenderer& mRenderer;
+
 			PvdConstraintVisualizer(const void* id, physx::pvdsdk::PvdUserRenderer& r) : mRenderer(r)
 			{
 				mRenderer.setInstanceId(id);
 			}
-			virtual void visualizeJointFrames(const PxTransform& parent, const PxTransform& child)
+
+			virtual void visualizeJointFrames(const PxTransform& parent, const PxTransform& child)	PX_OVERRIDE
 			{
 				mRenderer.visualizeJointFrames(parent, child);
 			}
 
-			virtual void visualizeLinearLimit(const PxTransform& t0, const PxTransform& t1, PxReal value, bool active)
+			virtual void visualizeLinearLimit(const PxTransform& t0, const PxTransform& t1, PxReal value)	PX_OVERRIDE
 			{
-				mRenderer.visualizeLinearLimit(t0, t1, PxF32(value), active);
+				mRenderer.visualizeLinearLimit(t0, t1, PxF32(value));
 			}
 
-			virtual void visualizeAngularLimit(const PxTransform& t0, PxReal lower, PxReal upper, bool active)
+			virtual void visualizeAngularLimit(const PxTransform& t0, PxReal lower, PxReal upper)	PX_OVERRIDE
 			{
-				mRenderer.visualizeAngularLimit(t0, PxF32(lower), PxF32(upper), active);
+				mRenderer.visualizeAngularLimit(t0, PxF32(lower), PxF32(upper));
 			}
 
-			virtual void visualizeLimitCone(const PxTransform& t, PxReal tanQSwingY, PxReal tanQSwingZ, bool active)
+			virtual void visualizeLimitCone(const PxTransform& t, PxReal tanQSwingY, PxReal tanQSwingZ)	PX_OVERRIDE
 			{
-				mRenderer.visualizeLimitCone(t, PxF32(tanQSwingY), PxF32(tanQSwingZ), active);
+				mRenderer.visualizeLimitCone(t, PxF32(tanQSwingY), PxF32(tanQSwingZ));
 			}
 
-			virtual void visualizeDoubleCone(const PxTransform& t, PxReal angle, bool active)
+			virtual void visualizeDoubleCone(const PxTransform& t, PxReal angle)	PX_OVERRIDE
 			{
-				mRenderer.visualizeDoubleCone(t, PxF32(angle), active);
+				mRenderer.visualizeDoubleCone(t, PxF32(angle));
 			}
 
-			virtual void visualizeLine( const PxVec3& p0, const PxVec3& p1, PxU32 color)
+			virtual void visualizeLine( const PxVec3& p0, const PxVec3& p1, PxU32 color)	PX_OVERRIDE
 			{
 				const PxDebugLine line(p0, p1, color);
 				mRenderer.drawLines(&line, 1);
@@ -373,7 +366,7 @@ void PvdSceneClient::sendEntireScene()
 	NpScene* npScene = &mScene;
 
 	if(npScene->getFlagsFast() & PxSceneFlag::eREQUIRE_RW_LOCK) // getFlagsFast() will trigger a warning of lock check
-		npScene->lockRead(__FILE__, __LINE__);
+		npScene->lockRead(PX_FL);
 
 	PxPhysics& physics = PxGetPhysics();
 	{
@@ -671,20 +664,21 @@ void PvdSceneClient::releasePvdInstance(const NpArticulationFixedTendon* articul
 
 /////////////////////////////////////////////////////////////////////////////////
 
-void PvdSceneClient::createPvdInstance(const NpArticulationSensor* sensor)
+void PvdSceneClient::createPvdInstance(const NpArticulationMimicJoint* mimicJoint)
 {
-	PX_UNUSED(sensor);
+	PX_UNUSED(mimicJoint);
 }
 
-void PvdSceneClient::updatePvdProperties(const NpArticulationSensor* sensor)
+void PvdSceneClient::updatePvdProperties(const NpArticulationMimicJoint* mimicJoint)
 {
-	PX_UNUSED(sensor);
+	PX_UNUSED(mimicJoint);
 }
 
-void PvdSceneClient::releasePvdInstance(const NpArticulationSensor* sensor)
+void PvdSceneClient::releasePvdInstance(const NpArticulationMimicJoint* mimicJoint)
 {
-	PX_UNUSED(sensor);
+	PX_UNUSED(mimicJoint);
 }
+
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -736,33 +730,19 @@ void PvdSceneClient::releasePvdInstance(const PxsFEMSoftBodyMaterialCore* materi
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void PvdSceneClient::createPvdInstance(const PxsFEMClothMaterialCore* /*materialCore*/)
+void PvdSceneClient::createPvdInstance(const PxsFEMClothMaterialCore*)
 {
-	// jcarius: Commented-out until FEMCloth is not under construction anymore
-	PX_ASSERT(0);
-
-	// if (checkPvdDebugFlag())
-	// {
-	// 	const PxFEMClothMaterial* theMaterial = materialCore->mMaterial;
-	// 	if (mPvd->registerObject(theMaterial))
-	// 		mMetaDataBinding.createInstance(*mPvdDataStream, *theMaterial, PxGetPhysics());
-	// }
+	// no PVD support but method is "needed" since macro code is shared among all material types
 }
 
-void PvdSceneClient::updatePvdProperties(const PxsFEMClothMaterialCore* /*materialCore*/)
+void PvdSceneClient::updatePvdProperties(const PxsFEMClothMaterialCore*)
 {
-	// jcarius: Commented-out until FEMCloth is not under construction anymore
-	PX_ASSERT(0);
-	// if (checkPvdDebugFlag())
-	// 	mMetaDataBinding.sendAllProperties(*mPvdDataStream, *materialCore->mMaterial);
+	// no PVD support but method is "needed" since macro code is shared among all material types
 }
 
-void PvdSceneClient::releasePvdInstance(const PxsFEMClothMaterialCore* /*materialCore*/)
+void PvdSceneClient::releasePvdInstance(const PxsFEMClothMaterialCore*)
 {
-	// jcarius: Commented-out until FEMCloth is not under construction anymore
-	PX_ASSERT(0);
-	// if (checkPvdDebugFlag() && mPvd->unRegisterObject(materialCore->mMaterial))
-	// 	mMetaDataBinding.destroyInstance(*mPvdDataStream, *materialCore->mMaterial, PxGetPhysics());
+	// no PVD support but method is "needed" since macro code is shared among all material types
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -778,51 +758,6 @@ void PvdSceneClient::updatePvdProperties(const PxsPBDMaterialCore* /*materialCor
 }
 
 void PvdSceneClient::releasePvdInstance(const PxsPBDMaterialCore* /*materialCore*/)
-{
-//	PX_ASSERT(0);
-}
-
-void PvdSceneClient::createPvdInstance(const PxsFLIPMaterialCore* /*materialCore*/)
-{
-//	PX_ASSERT(0);
-}
-
-void PvdSceneClient::updatePvdProperties(const PxsFLIPMaterialCore* /*materialCore*/)
-{
-//	PX_ASSERT(0);
-}
-
-void PvdSceneClient::releasePvdInstance(const PxsFLIPMaterialCore* /*materialCore*/)
-{
-//	PX_ASSERT(0);
-}
-
-void PvdSceneClient::createPvdInstance(const PxsMPMMaterialCore* /*materialCore*/)
-{
-//	PX_ASSERT(0);
-}
-
-void PvdSceneClient::updatePvdProperties(const PxsMPMMaterialCore* /*materialCore*/)
-{
-//	PX_ASSERT(0);
-}
-
-void PvdSceneClient::releasePvdInstance(const PxsMPMMaterialCore* /*materialCore*/)
-{
-//	PX_ASSERT(0);
-}
-
-void PvdSceneClient::createPvdInstance(const PxsCustomMaterialCore* /*materialCore*/)
-{
-//	PX_ASSERT(0);
-}
-
-void PvdSceneClient::updatePvdProperties(const PxsCustomMaterialCore* /*materialCore*/)
-{
-//	PX_ASSERT(0);
-}
-
-void PvdSceneClient::releasePvdInstance(const PxsCustomMaterialCore* /*materialCore*/)
 {
 //	PX_ASSERT(0);
 }
@@ -1108,105 +1043,6 @@ void PvdSceneClient::releasePvdInstance(const NpPBDParticleSystem* particleSyste
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void PvdSceneClient::createPvdInstance(const NpFLIPParticleSystem* particleSystem)
-{
-	PX_UNUSED(particleSystem);
-	//Todo
-}
-
-void PvdSceneClient::updatePvdProperties(const NpFLIPParticleSystem* particleSystem)
-{
-	PX_UNUSED(particleSystem);
-	//Todo
-}
-
-void PvdSceneClient::attachAggregateActor(const NpFLIPParticleSystem* particleSystem, NpActor* actor)
-{
-	PX_UNUSED(particleSystem);
-	PX_UNUSED(actor);
-	//Todo
-}
-
-void PvdSceneClient::detachAggregateActor(const NpFLIPParticleSystem* particleSystem, NpActor* actor)
-{
-	PX_UNUSED(particleSystem);
-	PX_UNUSED(actor);
-	//Todo
-}
-
-void PvdSceneClient::releasePvdInstance(const NpFLIPParticleSystem* particleSystem)
-{
-	PX_UNUSED(particleSystem);
-	//Todo
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void PvdSceneClient::createPvdInstance(const NpMPMParticleSystem* particleSystem)
-{
-	PX_UNUSED(particleSystem);
-	//Todo
-}
-
-void PvdSceneClient::updatePvdProperties(const NpMPMParticleSystem* particleSystem)
-{
-	PX_UNUSED(particleSystem);
-	//Todo
-}
-
-void PvdSceneClient::attachAggregateActor(const NpMPMParticleSystem* particleSystem, NpActor* actor)
-{
-	PX_UNUSED(particleSystem);
-	PX_UNUSED(actor);
-	//Todo
-}
-
-void PvdSceneClient::detachAggregateActor(const NpMPMParticleSystem* particleSystem, NpActor* actor)
-{
-	PX_UNUSED(particleSystem);
-	PX_UNUSED(actor);
-	//Todo
-}
-
-void PvdSceneClient::releasePvdInstance(const NpMPMParticleSystem* particleSystem)
-{
-	PX_UNUSED(particleSystem);
-	//Todo
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void PvdSceneClient::createPvdInstance(const NpCustomParticleSystem* particleSystem)
-{
-	PX_UNUSED(particleSystem);
-	//Todo
-}
-
-void PvdSceneClient::updatePvdProperties(const NpCustomParticleSystem* particleSystem)
-{
-	PX_UNUSED(particleSystem);
-	//Todo
-}
-
-void PvdSceneClient::attachAggregateActor(const NpCustomParticleSystem* particleSystem, NpActor* actor)
-{
-	PX_UNUSED(particleSystem);
-	PX_UNUSED(actor);
-	//Todo
-}
-
-void PvdSceneClient::detachAggregateActor(const NpCustomParticleSystem* particleSystem, NpActor* actor)
-{
-	PX_UNUSED(particleSystem);
-	PX_UNUSED(actor);
-	//Todo
-}
-
-void PvdSceneClient::releasePvdInstance(const NpCustomParticleSystem* particleSystem)
-{
-	PX_UNUSED(particleSystem);
-	//Todo
-}
-
-///////////////////////////////////////////////////////////////////////////////
 
 void PvdSceneClient::createPvdInstance(const NpHairSystem* hairSystem)
 {
@@ -1254,7 +1090,6 @@ void PvdSceneClient::updateJoints()
 
 		Sc::ConstraintCore*const * constraints = mScene.getScScene().getConstraints();
 		const PxU32 nbConstraints = mScene.getScScene().getNbConstraints();
-		PxI64 constraintCount = 0;
 
 		for(PxU32 i=0; i<nbConstraints; i++)
 		{
@@ -1282,7 +1117,6 @@ void PvdSceneClient::updateJoints()
 					(*constraint->getVisualize())(viz, sim->getConstantsLL(), t0, t1, 0xffffFFFF);
 				}
 			}
-			++constraintCount;
 		}
 
 		mUserRender->flushRenderEvents();

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -38,21 +38,23 @@ namespace physx
 enum SolverConstraintType
 {
 	DY_SC_TYPE_NONE = 0,
-	DY_SC_TYPE_RB_CONTACT,		// RB-only contact
-	DY_SC_TYPE_RB_1D,			// RB-only 1D constraint
-	DY_SC_TYPE_EXT_CONTACT,	// contact involving articulations
-	DY_SC_TYPE_EXT_1D,			// 1D constraint involving articulations
-	DY_SC_TYPE_STATIC_CONTACT,	// RB-only contact where body b is static
-	DY_SC_TYPE_NOFRICTION_RB_CONTACT, //RB-only contact with no friction patch
+
+	DY_SC_TYPE_RB_CONTACT,				// RB-only contact
+	DY_SC_TYPE_RB_1D,					// RB-only 1D constraint
+	DY_SC_TYPE_EXT_CONTACT,				// contact involving articulations
+	DY_SC_TYPE_EXT_1D,					// 1D constraint involving articulations
+	DY_SC_TYPE_STATIC_CONTACT,			// RB-only contact where body b is static
 	DY_SC_TYPE_BLOCK_RB_CONTACT,
 	DY_SC_TYPE_BLOCK_STATIC_RB_CONTACT,
 	DY_SC_TYPE_BLOCK_1D,
+	// PT: the following types are only used in the PGS PF solver
 	DY_SC_TYPE_FRICTION,
 	DY_SC_TYPE_STATIC_FRICTION,
 	DY_SC_TYPE_EXT_FRICTION,
 	DY_SC_TYPE_BLOCK_FRICTION,
 	DY_SC_TYPE_BLOCK_STATIC_FRICTION,
-	DY_SC_CONSTRAINT_TYPE_COUNT //Count of the number of different constraint types in the solver
+
+	DY_SC_CONSTRAINT_TYPE_COUNT	//Count of the number of different constraint types in the solver
 };
 
 enum SolverConstraintFlags

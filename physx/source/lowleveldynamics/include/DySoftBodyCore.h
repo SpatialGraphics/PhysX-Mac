@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 
 #ifndef DY_SOFTBODY_CORE_H
 #define DY_SOFTBODY_CORE_H
@@ -30,6 +30,7 @@
 #include "foundation/PxSimpleTypes.h"
 #include "foundation/PxTransform.h"
 #include "PxSoftBody.h"
+#include "PxSoftBodyFlag.h"
 #include "PxsFEMSoftBodyMaterialCore.h"
 #include "foundation/PxArray.h"
 
@@ -50,6 +51,7 @@ namespace physx
 			PxU16					solverIterationCounts;	//vel iters are in low word and pos iters in high word.
 			bool					dirty;
 			PxSoftBodyFlags			mFlags;
+			PxSoftBodyDataFlags		mDirtyFlags;
 
 			
 			void setMaterial(const PxU16 materialHandle)
@@ -61,22 +63,14 @@ namespace physx
 
 			PxArray<PxU16>			mMaterialHandles;
 
-			//device
-			PxBuffer*				mPositionInvMass;
+			//device - managed by PhysX
+			PxVec4*					mPositionInvMass;     // collision mesh positions, alloc on attachShape(), dealloc detachShape()
+			PxVec4* 				mRestPosition;        // collision mesh rest positions, alloc on attachShape(), dealloc detachShape()
+			PxVec4*					mSimPositionInvMass;  // simulation mesh positions, alloc on attachSimulationMesh(), dealloc detachSimulationMesh()
+			PxVec4*					mSimVelocity;         // simulation mesh velocities, alloc on attachSimulationMesh(), dealloc detachSimulationMesh()
 
-			//host
-			PxBuffer*				mPositionInvMassCPU;
-			PxBuffer*				mRestPositionInvMassCPU;
-
-			//device
-			PxBuffer*				mSimPositionInvMass;
-			PxBuffer*				mSimVelocityInvMass;
-			PxBuffer*				mKinematicTarget;
-
-			//host
-			PxBuffer*				mSimPositionInvMassCPU;
-			PxBuffer*				mSimVelocityInvMassCPU;
-			PxBuffer*				mKinematicTargetCPU;
+			// device - just the pointer, user responsible.
+			const PxVec4*			mKinematicTarget;
 		};
 
 	}

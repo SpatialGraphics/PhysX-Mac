@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
@@ -34,9 +34,6 @@
 #endif
 #include "foundation/PxMemory.h"
 
-/** \addtogroup vehicle2
-  @{
-*/
 
 #if !PX_DOXYGEN
 namespace physx
@@ -60,6 +57,7 @@ struct PxVehiclePvdObjectHandles
 	OmniPvdObjectHandle steerResponseParamsOH;
 	OmniPvdObjectHandle brakeResponseStateOH;
 	OmniPvdObjectHandle steerResponseStateOH;
+	OmniPvdObjectHandle ackermannParamsOH;
 
 	OmniPvdObjectHandle directDriveCommandStateOH;
 	OmniPvdObjectHandle directDriveTransmissionCommandStateOH;
@@ -74,8 +72,7 @@ struct PxVehiclePvdObjectHandles
 	OmniPvdObjectHandle engineParamsOH;
 	OmniPvdObjectHandle gearboxParamsOH;
 	OmniPvdObjectHandle autoboxParamsOH;
-	OmniPvdObjectHandle multiWheelDiffParamsOH;
-	OmniPvdObjectHandle fourWheelDiffParamsOH;
+	OmniPvdObjectHandle differentialParamsOH;
 	OmniPvdObjectHandle clutchResponseStateOH;
 	OmniPvdObjectHandle engineDriveThrottleResponseStateOH;
 	OmniPvdObjectHandle engineStateOH;
@@ -111,10 +108,13 @@ struct PxVehiclePvdObjectHandles
 	OmniPvdObjectHandle* physxConstraintParamOHs;
 	OmniPvdObjectHandle* physxConstraintStateOHs;
 	OmniPvdObjectHandle* physxRoadGeomStateOHs;
+	OmniPvdObjectHandle physxSteerStateOH;
 	OmniPvdObjectHandle* physxMaterialFrictionSetOHs;
 	OmniPvdObjectHandle* physxMaterialFrictionOHs;
 
 	OmniPvdObjectHandle physxRoadGeomQueryParamOH;
+	OmniPvdObjectHandle physxRoadGeomQueryDefaultFilterDataOH;
+	OmniPvdObjectHandle* physxRoadGeomQueryFilterDataOHs;
 	OmniPvdObjectHandle physxRigidActorOH;
 
 	OmniPvdObjectHandle* antiRollParamOHs;
@@ -134,4 +134,3 @@ struct PxVehiclePvdObjectHandles
 } // namespace physx
 #endif
 
-/** @} */

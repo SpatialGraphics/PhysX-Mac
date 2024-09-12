@@ -22,10 +22,11 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
+#include "OmniPvdDefinesInternal.h"
 #include "OmniPvdReaderImpl.h"
 
 #include <inttypes.h>
@@ -35,7 +36,6 @@ OmniPvdReaderImpl::OmniPvdReaderImpl()
 	mMajorVersion = OMNI_PVD_VERSION_MAJOR;
 	mMinorVersion = OMNI_PVD_VERSION_MINOR;
 	mPatch = OMNI_PVD_VERSION_PATCH;
-	mCmdType = OmniPvdCommandEnum::eOmniPvdInvalid;
 	mDataBuffer = 0;
 	mDataBuffAllocatedLen = 0;
 	mCmdAttributeDataPtr = 0;
@@ -56,13 +56,13 @@ void OMNI_PVD_CALL OmniPvdReaderImpl::setLogFunction(OmniPvdLogFunction logFunct
 	mLog.setLogFunction(logFunction);
 }
 
-void OMNI_PVD_CALL OmniPvdReaderImpl::setReadStream(OmniPvdReadStream* stream)
+void OMNI_PVD_CALL OmniPvdReaderImpl::setReadStream(OmniPvdReadStream& stream)
 {
-	mStream = stream;
+	mStream = &stream;
 	mStream->openStream();
 }
 
-bool OMNI_PVD_CALL OmniPvdReaderImpl::startReading(OmniPvdVersionType* majorVersion, OmniPvdVersionType* minorVersion, OmniPvdVersionType* patch)
+bool OMNI_PVD_CALL OmniPvdReaderImpl::startReading(OmniPvdVersionType& majorVersion, OmniPvdVersionType& minorVersion, OmniPvdVersionType& patch)
 {
 	if (mIsReadingStarted)
 	{
@@ -70,13 +70,13 @@ bool OMNI_PVD_CALL OmniPvdReaderImpl::startReading(OmniPvdVersionType* majorVers
 	}
 	if (mStream)
 	{
-		mStream->readBytes((uint8_t*)majorVersion, sizeof(OmniPvdVersionType));
-		mStream->readBytes((uint8_t*)minorVersion, sizeof(OmniPvdVersionType));
-		mStream->readBytes((uint8_t*)patch, sizeof(OmniPvdVersionType));
+		mStream->readBytes((uint8_t*)&majorVersion, sizeof(OmniPvdVersionType));
+		mStream->readBytes((uint8_t*)&minorVersion, sizeof(OmniPvdVersionType));
+		mStream->readBytes((uint8_t*)&patch, sizeof(OmniPvdVersionType));
 
-		mCmdMajorVersion = *majorVersion;
-		mCmdMinorVersion = *minorVersion;
-		mCmdPatch = *patch;
+		mCmdMajorVersion = majorVersion;
+		mCmdMinorVersion = minorVersion;
+		mCmdPatch = patch;
 
 		if ((mCmdMajorVersion == 0) && (mCmdMinorVersion < 3))
 		{
@@ -89,22 +89,22 @@ bool OMNI_PVD_CALL OmniPvdReaderImpl::startReading(OmniPvdVersionType* majorVers
 			mReadBaseClassHandle = 1;
 		}
 
-		mLog.outputLine("OmniPvdRuntimeReaderImpl::startReading majorVersion(%lu), minorVersion(%lu), patch(%lu)", static_cast<unsigned long>(*majorVersion), static_cast<unsigned long>(*minorVersion), static_cast<unsigned long>(*patch));
-		if ((*majorVersion) > mMajorVersion)
+		mLog.outputLine("OmniPvdRuntimeReaderImpl::startReading majorVersion(%lu), minorVersion(%lu), patch(%lu)", static_cast<unsigned long>(majorVersion), static_cast<unsigned long>(minorVersion), static_cast<unsigned long>(patch));
+		if (majorVersion > mMajorVersion)
 		{
 			mLog.outputLine("[parser] major version too new\n");
 			return false;
 		}
-		else if ((*majorVersion) == mMajorVersion)
+		else if (majorVersion == mMajorVersion)
 		{
-			if ((*minorVersion) > mMinorVersion)
+			if (minorVersion > mMinorVersion)
 			{				
 				mLog.outputLine("[parser] minor version too new\n");
 				return false;
 			}
-			else if ((*minorVersion) == mMinorVersion)
+			else if (minorVersion == mMinorVersion)
 			{
-				if ((*patch) > mPatch)
+				if (patch > mPatch)
 				{
 					mLog.outputLine("[parser] patch too new\n");
 					return false;
@@ -120,170 +120,178 @@ bool OMNI_PVD_CALL OmniPvdReaderImpl::startReading(OmniPvdVersionType* majorVers
 	
 }
 
-OmniPvdCommandEnum::Enum OMNI_PVD_CALL OmniPvdReaderImpl::getNextCommand()
+static OmniPvdDataType::Enum readDataType(OmniPvdReadStream& stream)
 {
+	OmniPvdDataTypeStorageType dataType;
+	stream.readBytes((uint8_t*)&dataType, sizeof(OmniPvdDataTypeStorageType));
+	return static_cast<OmniPvdDataType::Enum>(dataType);
+}
+
+OmniPvdCommand::Enum OMNI_PVD_CALL OmniPvdReaderImpl::getNextCommand()
+{
+	OmniPvdCommand::Enum cmdType = OmniPvdCommand::eINVALID;
+	resetCommandParams();
 	if (!mIsReadingStarted)
 	{
-		if (!startReading(&mCmdMajorVersion, &mCmdMinorVersion, &mCmdPatch))
+		if (!startReading(mCmdMajorVersion, mCmdMinorVersion, mCmdPatch))
 		{
-			return OmniPvdCommandEnum::eOmniPvdInvalid;
+			return cmdType;
 		}
-	}
-	mCmdType = OmniPvdCommandEnum::eOmniPvdInvalid;
+	}	
 	if (mStream) {
-		unsigned char command;
-		if (mStream->readBytes(&command, 1))
+		OmniPvdCommandStorageType command;
+		if (mStream->readBytes(&command, sizeof(OmniPvdCommandStorageType)))
 		{
 			switch (command) {
-				case OmniPvdCommandEnum::eOmniPvdRegisterClass:
+				case OmniPvdCommand::eREGISTER_CLASS:
 				{
-					mCmdType = OmniPvdCommandEnum::eOmniPvdRegisterClass;
-					mStream->readBytes((unsigned char*)&mCmdClassHandle, sizeof(OmniPvdClassHandle));
+					cmdType = OmniPvdCommand::eREGISTER_CLASS;
+					mStream->readBytes((uint8_t*)&mCmdClassHandle, sizeof(OmniPvdClassHandle));
 					////////////////////////////////////////////////////////////////////////////////
 					// Skip reading the base class if the stream is older or equal to (0,2,x)
 					////////////////////////////////////////////////////////////////////////////////
 					if (mReadBaseClassHandle)
 					{
-						mStream->readBytes((unsigned char*)&mCmdBaseClassHandle, sizeof(OmniPvdClassHandle));
+						mStream->readBytes((uint8_t*)&mCmdBaseClassHandle, sizeof(OmniPvdClassHandle));
 					}
-					mStream->readBytes((unsigned char*)&mCmdClassNameLen, sizeof(uint16_t));
-					mStream->readBytes((unsigned char*)mCmdClassName, mCmdClassNameLen);
+					mStream->readBytes((uint8_t*)&mCmdClassNameLen, sizeof(uint16_t));
+					mStream->readBytes((uint8_t*)mCmdClassName, mCmdClassNameLen);
 					mCmdClassName[mCmdClassNameLen] = 0; // trailing zero
 					mLog.outputLine("[parser] register class (handle: %llu, name: %s)\n", static_cast<unsigned long long>(mCmdClassHandle), mCmdClassName);
 				}
 				break;
-				case OmniPvdCommandEnum::eOmniPvdRegisterAttribute:
+				case OmniPvdCommand::eREGISTER_ATTRIBUTE:
 				{
-					mCmdType = OmniPvdCommandEnum::eOmniPvdRegisterAttribute;
-					mStream->readBytes((unsigned char*)&mCmdClassHandle, sizeof(OmniPvdClassHandle));
-					mStream->readBytes((unsigned char*)&mCmdAttributeHandle, sizeof(OmniPvdAttributeHandle));
-					mStream->readBytes((unsigned char*)&mCmdAttributeDataType, sizeof(OmniPvdAttributeDataType));
-					if (mCmdAttributeDataType == OmniPvdDataTypeEnum::eENUM_VALUE)
+					cmdType = OmniPvdCommand::eREGISTER_ATTRIBUTE;
+					mStream->readBytes((uint8_t*)&mCmdClassHandle, sizeof(OmniPvdClassHandle));
+					mStream->readBytes((uint8_t*)&mCmdAttributeHandle, sizeof(OmniPvdAttributeHandle));
+					mCmdAttributeDataType = readDataType(*mStream);
+					if (mCmdAttributeDataType == OmniPvdDataType::eENUM_VALUE)
 					{
-						mStream->readBytes((unsigned char*)&mCmdEnumValue, sizeof(uint32_t));
+						mStream->readBytes((uint8_t*)&mCmdEnumValue, sizeof(OmniPvdEnumValueType));
 					}
-					else if (mCmdAttributeDataType == OmniPvdDataTypeEnum::eFLAGS_WORD)
+					else if (mCmdAttributeDataType == OmniPvdDataType::eFLAGS_WORD)
 					{
-						mStream->readBytes((unsigned char*)&mCmdEnumClassHandle, sizeof(uint32_t));
+						mStream->readBytes((uint8_t*)&mCmdEnumClassHandle, sizeof(OmniPvdClassHandle));
 					}
 					else
 					{
 						mCmdEnumValue = 0;
-						mStream->readBytes((unsigned char*)&mCmdAttributeNbrFields, sizeof(uint32_t));
+						mStream->readBytes((uint8_t*)&mCmdAttributeNbElements, sizeof(uint32_t));
 					}
-					mStream->readBytes((unsigned char*)&mCmdAttributeNameLen, sizeof(uint16_t));
-					mStream->readBytes((unsigned char*)mCmdAttributeName, mCmdAttributeNameLen);
+					mStream->readBytes((uint8_t*)&mCmdAttributeNameLen, sizeof(uint16_t));
+					mStream->readBytes((uint8_t*)mCmdAttributeName, mCmdAttributeNameLen);
 					mCmdAttributeName[mCmdAttributeNameLen] = 0; // trailing zero
-					mLog.outputLine("[parser] register attribute (classHandle: %llu, handle: %llu, dataType: %llu, nrFields: %llu, name: %s)\n", static_cast<unsigned long long>(mCmdClassHandle), static_cast<unsigned long long>(mCmdAttributeHandle), static_cast<unsigned long long>(mCmdAttributeDataType), static_cast<unsigned long long>(mCmdAttributeNbrFields), mCmdAttributeName);
+					mLog.outputLine("[parser] register attribute (classHandle: %llu, handle: %llu, dataType: %llu, nrFields: %llu, name: %s)\n", static_cast<unsigned long long>(mCmdClassHandle), static_cast<unsigned long long>(mCmdAttributeHandle), static_cast<unsigned long long>(mCmdAttributeDataType), static_cast<unsigned long long>(mCmdAttributeNbElements), mCmdAttributeName);
 				}
 				break;
-				case OmniPvdCommandEnum::eOmniPvdRegisterClassAttribute:
+				case OmniPvdCommand::eREGISTER_CLASS_ATTRIBUTE:
 				{
-					mCmdType = OmniPvdCommandEnum::eOmniPvdRegisterClassAttribute;
-					mStream->readBytes((unsigned char*)&mCmdClassHandle, sizeof(OmniPvdClassHandle));
-					mStream->readBytes((unsigned char*)&mCmdAttributeHandle, sizeof(OmniPvdAttributeHandle));
-					mStream->readBytes((unsigned char*)&mCmdAttributeClassHandle, sizeof(OmniPvdClassHandle));
-					mStream->readBytes((unsigned char*)&mCmdAttributeNameLen, sizeof(uint16_t));
-					mStream->readBytes((unsigned char*)mCmdAttributeName, mCmdAttributeNameLen);
+					cmdType = OmniPvdCommand::eREGISTER_CLASS_ATTRIBUTE;
+					mStream->readBytes((uint8_t*)&mCmdClassHandle, sizeof(OmniPvdClassHandle));
+					mStream->readBytes((uint8_t*)&mCmdAttributeHandle, sizeof(OmniPvdAttributeHandle));
+					mStream->readBytes((uint8_t*)&mCmdAttributeClassHandle, sizeof(OmniPvdClassHandle));
+					mStream->readBytes((uint8_t*)&mCmdAttributeNameLen, sizeof(uint16_t));
+					mStream->readBytes((uint8_t*)mCmdAttributeName, mCmdAttributeNameLen);
 					mCmdAttributeName[mCmdAttributeNameLen] = 0; // trailing zero
 					mLog.outputLine("[parser] register class attribute (classHandle: %llu, handle: %llu, classAttributeHandle: %llu, name: %s)\n", static_cast<unsigned long long>(mCmdClassHandle), static_cast<unsigned long long>(mCmdAttributeHandle), static_cast<unsigned long long>(mCmdAttributeClassHandle), mCmdAttributeName);
 				}
 				break;
-				case OmniPvdCommandEnum::eOmniPvdRegisterSetAttribute:
+				case OmniPvdCommand::eREGISTER_UNIQUE_LIST_ATTRIBUTE:
 				{
-					mCmdType = OmniPvdCommandEnum::eOmniPvdRegisterSetAttribute;
-					mStream->readBytes((unsigned char*)&mCmdClassHandle, sizeof(OmniPvdClassHandle));
-					mStream->readBytes((unsigned char*)&mCmdAttributeHandle, sizeof(OmniPvdAttributeHandle));
-					mStream->readBytes((unsigned char*)&mCmdAttributeDataType, sizeof(OmniPvdAttributeDataType));
-					mStream->readBytes((unsigned char*)&mCmdAttributeNameLen, sizeof(uint16_t));
-					mStream->readBytes((unsigned char*)mCmdAttributeName, mCmdAttributeNameLen);
+					cmdType = OmniPvdCommand::eREGISTER_UNIQUE_LIST_ATTRIBUTE;
+					mStream->readBytes((uint8_t*)&mCmdClassHandle, sizeof(OmniPvdClassHandle));
+					mStream->readBytes((uint8_t*)&mCmdAttributeHandle, sizeof(OmniPvdAttributeHandle));
+					mCmdAttributeDataType = readDataType(*mStream);
+					mStream->readBytes((uint8_t*)&mCmdAttributeNameLen, sizeof(uint16_t));
+					mStream->readBytes((uint8_t*)mCmdAttributeName, mCmdAttributeNameLen);
 					mCmdAttributeName[mCmdAttributeNameLen] = 0; // trailing zero
 					mLog.outputLine("[parser] register attributeSet (classHandle: %llu, handle: %llu, dataType: %llu, name: %s)\n", static_cast<unsigned long long>(mCmdClassHandle), static_cast<unsigned long long>(mCmdAttributeHandle), static_cast<unsigned long long>(mCmdAttributeDataType), mCmdAttributeName);
 				}
 				break;
-				case OmniPvdCommandEnum::eOmniPvdSetAttribute:
+				case OmniPvdCommand::eSET_ATTRIBUTE:
 				{
-					mCmdType = OmniPvdCommandEnum::eOmniPvdSetAttribute;
-					mStream->readBytes((unsigned char*)&mCmdContextHandle, sizeof(OmniPvdContextHandle));
-					mStream->readBytes((unsigned char*)&mCmdObjectHandle, sizeof(OmniPvdObjectHandle));
-					mStream->readBytes((unsigned char*)&mCmdAttributeHandleDepth, sizeof(uint8_t));
+					cmdType = OmniPvdCommand::eSET_ATTRIBUTE;
+					mStream->readBytes((uint8_t*)&mCmdContextHandle, sizeof(OmniPvdContextHandle));
+					mStream->readBytes((uint8_t*)&mCmdObjectHandle, sizeof(OmniPvdObjectHandle));
+					mStream->readBytes((uint8_t*)&mCmdAttributeHandleDepth, sizeof(uint8_t));
 					uint32_t* attributeHandleStack = mCmdAttributeHandleStack;
 					for (int i = 0; i < mCmdAttributeHandleDepth; i++) {
-						mStream->readBytes((unsigned char*)&mCmdAttributeHandle, sizeof(OmniPvdAttributeHandle));
+						mStream->readBytes((uint8_t*)&mCmdAttributeHandle, sizeof(OmniPvdAttributeHandle));
 						attributeHandleStack++;
 					}
-					mStream->readBytes((unsigned char*)&mCmdAttributeDataLen, sizeof(uint32_t));
+					mStream->readBytes((uint8_t*)&mCmdAttributeDataLen, sizeof(uint32_t));
 					readLongDataFromStream(mCmdAttributeDataLen);
 					mLog.outputLine("[parser] set attribute (contextHandle:%llu, objectHandle: %llu, handle: %llu, dataLen: %llu)\n", static_cast<unsigned long long>(mCmdContextHandle), static_cast<unsigned long long>(mCmdObjectHandle), static_cast<unsigned long long>(mCmdAttributeHandle), static_cast<unsigned long long>(mCmdAttributeDataLen));
 				}
 				break;
-				case OmniPvdCommandEnum::eOmniPvdAddToSetAttribute:
+				case OmniPvdCommand::eADD_TO_UNIQUE_LIST_ATTRIBUTE:
 				{
-					mCmdType = OmniPvdCommandEnum::eOmniPvdAddToSetAttribute;
-					mStream->readBytes((unsigned char*)&mCmdContextHandle, sizeof(OmniPvdContextHandle));
-					mStream->readBytes((unsigned char*)&mCmdObjectHandle, sizeof(OmniPvdObjectHandle));
-					mStream->readBytes((unsigned char*)&mCmdAttributeHandleDepth, sizeof(uint8_t));
+					cmdType = OmniPvdCommand::eADD_TO_UNIQUE_LIST_ATTRIBUTE;
+					mStream->readBytes((uint8_t*)&mCmdContextHandle, sizeof(OmniPvdContextHandle));
+					mStream->readBytes((uint8_t*)&mCmdObjectHandle, sizeof(OmniPvdObjectHandle));
+					mStream->readBytes((uint8_t*)&mCmdAttributeHandleDepth, sizeof(uint8_t));
 					uint32_t* attributeHandleStack = mCmdAttributeHandleStack;
 					for (int i = 0; i < mCmdAttributeHandleDepth; i++) {
-						mStream->readBytes((unsigned char*)&mCmdAttributeHandle, sizeof(OmniPvdAttributeHandle));
+						mStream->readBytes((uint8_t*)&mCmdAttributeHandle, sizeof(OmniPvdAttributeHandle));
 						attributeHandleStack++;
 					}
-					mStream->readBytes((unsigned char*)&mCmdAttributeDataLen, sizeof(uint32_t));
+					mStream->readBytes((uint8_t*)&mCmdAttributeDataLen, sizeof(uint32_t));
 					readLongDataFromStream(mCmdAttributeDataLen);
 					mLog.outputLine("[parser] add to attributeSet (contextHandle:%llu, objectHandle: %llu, attributeHandle: %llu, dataLen: %llu)\n", static_cast<unsigned long long>(mCmdContextHandle), static_cast<unsigned long long>(mCmdObjectHandle), static_cast<unsigned long long>(mCmdAttributeHandle), static_cast<unsigned long long>(mCmdAttributeDataLen));
 				}
 				break;
-				case OmniPvdCommandEnum::eOmniPvdRemoveFromSetAttribute:
+				case OmniPvdCommand::eREMOVE_FROM_UNIQUE_LIST_ATTRIBUTE:
 				{
-					mCmdType = OmniPvdCommandEnum::eOmniPvdRemoveFromSetAttribute;
-					mStream->readBytes((unsigned char*)&mCmdContextHandle, sizeof(OmniPvdContextHandle));
-					mStream->readBytes((unsigned char*)&mCmdObjectHandle, sizeof(OmniPvdObjectHandle));
-					mStream->readBytes((unsigned char*)&mCmdAttributeHandleDepth, sizeof(uint8_t));
+					cmdType = OmniPvdCommand::eREMOVE_FROM_UNIQUE_LIST_ATTRIBUTE;
+					mStream->readBytes((uint8_t*)&mCmdContextHandle, sizeof(OmniPvdContextHandle));
+					mStream->readBytes((uint8_t*)&mCmdObjectHandle, sizeof(OmniPvdObjectHandle));
+					mStream->readBytes((uint8_t*)&mCmdAttributeHandleDepth, sizeof(uint8_t));
 					uint32_t* attributeHandleStack = mCmdAttributeHandleStack;
 					for (int i = 0; i < mCmdAttributeHandleDepth; i++) {
-						mStream->readBytes((unsigned char*)&mCmdAttributeHandle, sizeof(OmniPvdAttributeHandle));
+						mStream->readBytes((uint8_t*)&mCmdAttributeHandle, sizeof(OmniPvdAttributeHandle));
 						attributeHandleStack++;
 					}
-					mStream->readBytes((unsigned char*)&mCmdAttributeDataLen, sizeof(uint32_t));
+					mStream->readBytes((uint8_t*)&mCmdAttributeDataLen, sizeof(uint32_t));
 					readLongDataFromStream(mCmdAttributeDataLen);
 					mLog.outputLine("[parser] remove from attributeSet (contextHandle:%llu, objectHandle: %llu, handle: %llu, dataLen: %llu)\n", static_cast<unsigned long long>(mCmdContextHandle), static_cast<unsigned long long>(mCmdObjectHandle), static_cast<unsigned long long>(mCmdAttributeHandle), static_cast<unsigned long long>(mCmdAttributeDataLen));
 				}
 				break;
-				case OmniPvdCommandEnum::eOmniPvdCreateObject:
+				case OmniPvdCommand::eCREATE_OBJECT:
 				{
-					mCmdType = OmniPvdCommandEnum::eOmniPvdCreateObject;
-					mStream->readBytes((unsigned char*)&mCmdContextHandle, sizeof(OmniPvdContextHandle));
-					mStream->readBytes((unsigned char*)&mCmdClassHandle, sizeof(OmniPvdClassHandle));
-					mStream->readBytes((unsigned char*)&mCmdObjectHandle, sizeof(OmniPvdObjectHandle));
-					mStream->readBytes((unsigned char*)&mCmdObjectNameLen, sizeof(uint16_t));
+					cmdType = OmniPvdCommand::eCREATE_OBJECT;
+					mStream->readBytes((uint8_t*)&mCmdContextHandle, sizeof(OmniPvdContextHandle));
+					mStream->readBytes((uint8_t*)&mCmdClassHandle, sizeof(OmniPvdClassHandle));
+					mStream->readBytes((uint8_t*)&mCmdObjectHandle, sizeof(OmniPvdObjectHandle));
+					mStream->readBytes((uint8_t*)&mCmdObjectNameLen, sizeof(uint16_t));
 					if (mCmdObjectNameLen) {
-						mStream->readBytes((unsigned char*)mCmdObjectName, mCmdObjectNameLen);
+						mStream->readBytes((uint8_t*)mCmdObjectName, mCmdObjectNameLen);
 					}
 					mCmdObjectName[mCmdObjectNameLen] = 0; // trailing zero
 					mLog.outputLine("[parser] create object (contextHandle: %llu, classHandle: %llu, objectHandle: %llu, name: %s)\n", static_cast<unsigned long long>(mCmdContextHandle), static_cast<unsigned long long>(mCmdClassHandle), static_cast<unsigned long long>(mCmdObjectHandle), mCmdObjectName);
 				}
 				break;
-				case OmniPvdCommandEnum::eOmniPvdDestroyObject:
+				case OmniPvdCommand::eDESTROY_OBJECT:
 				{
-					mCmdType = OmniPvdCommandEnum::eOmniPvdDestroyObject;
-					mStream->readBytes((unsigned char*)&mCmdContextHandle, sizeof(OmniPvdContextHandle));
-					mStream->readBytes((unsigned char*)&mCmdObjectHandle, sizeof(OmniPvdObjectHandle));
+					cmdType = OmniPvdCommand::eDESTROY_OBJECT;
+					mStream->readBytes((uint8_t*)&mCmdContextHandle, sizeof(OmniPvdContextHandle));
+					mStream->readBytes((uint8_t*)&mCmdObjectHandle, sizeof(OmniPvdObjectHandle));
 					mLog.outputLine("[parser] destroy object (contextHandle: %llu, objectHandle: %llu)\n", static_cast<unsigned long long>(mCmdContextHandle), static_cast<unsigned long long>(mCmdObjectHandle));
 				}
 				break;
-				case OmniPvdCommandEnum::eOmniPvdStartFrame:
+				case OmniPvdCommand::eSTART_FRAME:
 				{
-					mCmdType = OmniPvdCommandEnum::eOmniPvdStartFrame;
-					mStream->readBytes((unsigned char*)&mCmdContextHandle, sizeof(OmniPvdContextHandle));
-					mStream->readBytes((unsigned char*)&mCmdFrameTimeStart, sizeof(uint64_t));
+					cmdType = OmniPvdCommand::eSTART_FRAME;
+					mStream->readBytes((uint8_t*)&mCmdContextHandle, sizeof(OmniPvdContextHandle));
+					mStream->readBytes((uint8_t*)&mCmdFrameTimeStart, sizeof(uint64_t));
 					mLog.outputLine("[parser] start frame (contextHandle: %llu, timeStamp: %llu)\n", static_cast<unsigned long long>(mCmdContextHandle), static_cast<unsigned long long>(mCmdFrameTimeStart));
 				}
 				break;
-				case OmniPvdCommandEnum::eOmniPvdStopFrame:
+				case OmniPvdCommand::eSTOP_FRAME:
 				{
-					mCmdType = OmniPvdCommandEnum::eOmniPvdStopFrame;
-					mStream->readBytes((unsigned char*)&mCmdContextHandle, sizeof(OmniPvdContextHandle));
-					mStream->readBytes((unsigned char*)&mCmdFrameTimeStop, sizeof(uint64_t));
+					cmdType = OmniPvdCommand::eSTOP_FRAME;
+					mStream->readBytes((uint8_t*)&mCmdContextHandle, sizeof(OmniPvdContextHandle));
+					mStream->readBytes((uint8_t*)&mCmdFrameTimeStop, sizeof(uint64_t));
 					mLog.outputLine("[parser] stop frame (contextHandle: %llu, timeStamp: %llu)\n", static_cast<unsigned long long>(mCmdContextHandle), static_cast<unsigned long long>(mCmdFrameTimeStop));
 				}
 				break;
@@ -292,20 +300,14 @@ OmniPvdCommandEnum::Enum OMNI_PVD_CALL OmniPvdReaderImpl::getNextCommand()
 				}
 				break;
 				}
-			return mCmdType;
+			return cmdType;
 		} else {
-			return mCmdType;
+			return cmdType;
 		}
 	}
 	else {
-		return mCmdType;
+		return cmdType;
 	}
-}
-
-
-OmniPvdCommandEnum::Enum OMNI_PVD_CALL OmniPvdReaderImpl::getCommandType()
-{
-	return mCmdType;
 }
 
 uint32_t OMNI_PVD_CALL OmniPvdReaderImpl::getMajorVersion()
@@ -338,59 +340,73 @@ OmniPvdClassHandle OMNI_PVD_CALL OmniPvdReaderImpl::getBaseClassHandle()
 	return mCmdBaseClassHandle;
 }
 
-uint32_t OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeHandle() {
+uint32_t OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeHandle()
+{
 	return mCmdAttributeHandle;
 }
 
-uint64_t OMNI_PVD_CALL OmniPvdReaderImpl::getObjectHandle() {
+uint64_t OMNI_PVD_CALL OmniPvdReaderImpl::getObjectHandle()
+{
 	return mCmdObjectHandle;
 }
 
-char* OMNI_PVD_CALL OmniPvdReaderImpl::getClassName() {
+const char* OMNI_PVD_CALL OmniPvdReaderImpl::getClassName()
+{
 	return mCmdClassName;
 }
 
-char* OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeName() {
+const char* OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeName()
+{
 	return mCmdAttributeName;
 }
 
-char* OMNI_PVD_CALL OmniPvdReaderImpl::getObjectName() {
+const char* OMNI_PVD_CALL OmniPvdReaderImpl::getObjectName()
+{
 	return mCmdObjectName;
 }
 
-uint8_t* OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeDataPointer() {
+const uint8_t* OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeDataPointer()
+{
 	return mCmdAttributeDataPtr;
 }
 
-uint16_t OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeDataType() {
+OmniPvdDataType::Enum OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeDataType()
+{
 	return mCmdAttributeDataType;
 }
 
-uint32_t OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeDataLength() {
+uint32_t OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeDataLength()
+{
 	return mCmdAttributeDataLen;
 }
 
-uint32_t OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeNumberElements() {
-	return mCmdAttributeNbrFields;
+uint32_t OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeNumberElements()
+{
+	return mCmdAttributeNbElements;
 }
 
-OmniPvdClassHandle OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeClassHandle() {
+OmniPvdClassHandle OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeClassHandle()
+{
 	return mCmdAttributeClassHandle;
 }
 
-uint8_t OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeNumberHandles() {
+uint8_t OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeNumberHandles()
+{
 	return mCmdAttributeHandleDepth;
 }
 
-uint32_t* OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeHandles() {
+uint32_t* OMNI_PVD_CALL OmniPvdReaderImpl::getAttributeHandles()
+{
 	return mCmdAttributeHandleStack;
 }
 
-uint64_t OMNI_PVD_CALL OmniPvdReaderImpl::getFrameTimeStart() {
+uint64_t OMNI_PVD_CALL OmniPvdReaderImpl::getFrameTimeStart()
+{
 	return mCmdFrameTimeStart;
 }
 
-uint64_t OMNI_PVD_CALL OmniPvdReaderImpl::getFrameTimeStop() {
+uint64_t OMNI_PVD_CALL OmniPvdReaderImpl::getFrameTimeStop()
+{
 	return mCmdFrameTimeStop;
 }
 
@@ -404,13 +420,87 @@ uint32_t OMNI_PVD_CALL OmniPvdReaderImpl::getEnumValue()
 	return mCmdEnumValue;
 }
 
-void OmniPvdReaderImpl::readLongDataFromStream(uint32_t streamByteLen) {
+void OmniPvdReaderImpl::readLongDataFromStream(uint32_t streamByteLen)
+{
 	if (streamByteLen < 1) return;
 	if (streamByteLen > mDataBuffAllocatedLen) {
 		delete[] mDataBuffer;
 		mDataBuffAllocatedLen = (uint32_t)(streamByteLen * 1.3f);
 		mDataBuffer = new uint8_t[mDataBuffAllocatedLen];
-		mCmdAttributeDataPtr = mDataBuffer;
 	}
+	mCmdAttributeDataPtr = mDataBuffer;
 	mStream->readBytes(mCmdAttributeDataPtr, streamByteLen);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Resets all command parameters before a new read command is executed,
+// except for those parameters that are "stateful" which are left commented out.
+////////////////////////////////////////////////////////////////////////////////
+void OmniPvdReaderImpl::resetCommandParams()
+{	
+	////////////////////////////////////////////////////////////////////////////////
+	// Stateful: Depends on the version of the stream reader
+	////////////////////////////////////////////////////////////////////////////////
+	// OmniPvdVersionType mMajorVersion;
+	// OmniPvdVersionType mMinorVersion;
+	// OmniPvdVersionType mPatch;
+	////////////////////////////////////////////////////////////////////////////////
+
+	////////////////////////////////////////////////////////////////////////////////
+	// Stateful: Depends on the stream being read and stay the same
+	////////////////////////////////////////////////////////////////////////////////
+	// OmniPvdVersionType mCmdMajorVersion;
+	// OmniPvdVersionType mCmdMinorVersion;
+	// OmniPvdVersionType mCmdPatch;
+	////////////////////////////////////////////////////////////////////////////////
+
+	mCmdContextHandle = OMNI_PVD_INVALID_HANDLE;
+	mCmdObjectHandle = OMNI_PVD_INVALID_HANDLE;
+
+	mCmdClassHandle = OMNI_PVD_INVALID_HANDLE;
+	mCmdBaseClassHandle = OMNI_PVD_INVALID_HANDLE;
+	mCmdAttributeHandle = OMNI_PVD_INVALID_HANDLE;
+		
+	mCmdClassName[0] = 0;
+	mCmdAttributeName[0] = 0;
+	mCmdObjectName[0] = 0;
+
+	mCmdClassNameLen = 0;
+	mCmdAttributeNameLen = 0;
+	mCmdObjectNameLen = 0;
+
+	mCmdAttributeDataPtr = 0;
+
+	////////////////////////////////////////////////////////////////////////////////
+	// Unsure how to handle this, a zero value could still be valid
+	////////////////////////////////////////////////////////////////////////////////
+	//mCmdAttributeDataType = OmniPvdDataType::eINT8; // int 8 is 0
+	////////////////////////////////////////////////////////////////////////////////
+	
+	mCmdAttributeDataLen = 0;
+	mCmdAttributeNbElements = 0;
+	mCmdEnumValue = 0;
+	mCmdEnumClassHandle = OMNI_PVD_INVALID_HANDLE;
+	mCmdAttributeClassHandle = OMNI_PVD_INVALID_HANDLE;
+
+	////////////////////////////////////////////////////////////////////////////////
+	// Left untouched/dirty : instead depends on the depth parameter below
+	////////////////////////////////////////////////////////////////////////////////
+	// OmniPvdAttributeHandle mCmdAttributeHandleStack[32];
+	////////////////////////////////////////////////////////////////////////////////
+	mCmdAttributeHandleDepth = 0;
+
+	////////////////////////////////////////////////////////////////////////////////
+	// Stateful for the duration of a frame
+	////////////////////////////////////////////////////////////////////////////////
+	// uint64_t mCmdFrameTimeStart;
+	// uint64_t mCmdFrameTimeStop;
+	////////////////////////////////////////////////////////////////////////////////
+
+	////////////////////////////////////////////////////////////////////////////////
+	// Internal scratch buffer, instead the mCmdAttributeDataPtr is set to 0
+	////////////////////////////////////////////////////////////////////////////////
+	// uint8_t *mDataBuffer;
+	// uint32_t mDataBuffAllocatedLen;
+	////////////////////////////////////////////////////////////////////////////////
 }

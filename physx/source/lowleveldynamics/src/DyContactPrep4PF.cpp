@@ -22,10 +22,9 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
-     
 
 #include "foundation/PxPreprocessor.h"
 #include "foundation/PxVecMath.h"
@@ -36,6 +35,7 @@
 
 #include "PxsMaterialManager.h"
 #include "DyContactPrepShared.h"
+#include "DyAllocator.h"
 
 using namespace physx::Gu;
 using namespace physx::aos;
@@ -57,7 +57,7 @@ SolverConstraintPrepState::Enum createFinalizeSolverContacts4Coulomb(
 		PxConstraintAllocator& constraintAllocator,
 		PxFrictionType::Enum frictionType);
 
-static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTRICT descs, PxU8* PX_RESTRICT workspace, 
+static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTRICT descs, PxU8* PX_RESTRICT workspace, const PxReal dtF32,
 											const PxReal invDtF32, PxReal bounceThresholdF32, CorrelationBuffer& c, const PxU32 numFrictionPerPoint,
 											const PxU32 numContactPoints4, const PxU32 /*solverConstraintByteSize*/,
 											const aos::Vec4VArg invMassScale0, const aos::Vec4VArg invInertiaScale0, 
@@ -69,6 +69,8 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 	const Vec4V solverOffsetSlop = aos::V4LoadXYZW(descs[0].offsetSlop, descs[1].offsetSlop, descs[2].offsetSlop, descs[3].offsetSlop);
 
 	const Vec4V zero = V4Zero();
+	const Vec4V one = V4One();
+	const BoolV bTrue = BTTTT();
 
 	PxU8 flags[4] = {	PxU8(descs[0].hasForceThresholds ? SolverContactHeader::eHAS_FORCE_THRESHOLDS : 0),
 						PxU8(descs[1].hasForceThresholds ? SolverContactHeader::eHAS_FORCE_THRESHOLDS : 0),
@@ -133,8 +135,6 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 	const Vec4V vrelY = V4Sub(linVelT10, linVelT11);
 	const Vec4V vrelZ = V4Sub(linVelT20, linVelT21);
 
-
-
 	//Load up masses and invInertia
 
 	const Vec4V invMass0 = V4Merge(FLoad(descs[0].data0->invMass), FLoad(descs[1].data0->invMass), FLoad(descs[2].data0->invMass),
@@ -146,37 +146,37 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 	const Vec4V invMass0_dom0fV = V4Mul(dom0, invMass0);
 	const Vec4V invMass1_dom1fV = V4Mul(dom1, invMass1);
 
-	Vec4V invInertia00X = Vec4V_From_Vec3V(V3LoadU(descs[0].data0->sqrtInvInertia.column0));
-	Vec4V invInertia00Y = Vec4V_From_Vec3V(V3LoadU(descs[0].data0->sqrtInvInertia.column1));
-	Vec4V invInertia00Z = Vec4V_From_Vec3V(V3LoadU(descs[0].data0->sqrtInvInertia.column2));
+	Vec4V invInertia00X = V4LoadU(&descs[0].data0->sqrtInvInertia.column0.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia00Y = V4LoadU(&descs[0].data0->sqrtInvInertia.column1.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia00Z = V4LoadU(&descs[0].data0->sqrtInvInertia.column2.x);	// PT: safe because sqrtInvInertia is not the last member of PxSolverBodyData, see compile-time-assert in PxSolverBodyData
 
-	Vec4V invInertia10X = Vec4V_From_Vec3V(V3LoadU(descs[1].data0->sqrtInvInertia.column0));
-	Vec4V invInertia10Y = Vec4V_From_Vec3V(V3LoadU(descs[1].data0->sqrtInvInertia.column1));
-	Vec4V invInertia10Z = Vec4V_From_Vec3V(V3LoadU(descs[1].data0->sqrtInvInertia.column2));
+	Vec4V invInertia10X = V4LoadU(&descs[1].data0->sqrtInvInertia.column0.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia10Y = V4LoadU(&descs[1].data0->sqrtInvInertia.column1.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia10Z = V4LoadU(&descs[1].data0->sqrtInvInertia.column2.x);	// PT: safe because sqrtInvInertia is not the last member of PxSolverBodyData, see compile-time-assert in PxSolverBodyData
 
-	Vec4V invInertia20X = Vec4V_From_Vec3V(V3LoadU(descs[2].data0->sqrtInvInertia.column0));
-	Vec4V invInertia20Y = Vec4V_From_Vec3V(V3LoadU(descs[2].data0->sqrtInvInertia.column1));
-	Vec4V invInertia20Z = Vec4V_From_Vec3V(V3LoadU(descs[2].data0->sqrtInvInertia.column2));
+	Vec4V invInertia20X = V4LoadU(&descs[2].data0->sqrtInvInertia.column0.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia20Y = V4LoadU(&descs[2].data0->sqrtInvInertia.column1.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia20Z = V4LoadU(&descs[2].data0->sqrtInvInertia.column2.x);	// PT: safe because sqrtInvInertia is not the last member of PxSolverBodyData, see compile-time-assert in PxSolverBodyData
 
-	Vec4V invInertia30X = Vec4V_From_Vec3V(V3LoadU(descs[3].data0->sqrtInvInertia.column0));
-	Vec4V invInertia30Y = Vec4V_From_Vec3V(V3LoadU(descs[3].data0->sqrtInvInertia.column1));
-	Vec4V invInertia30Z = Vec4V_From_Vec3V(V3LoadU(descs[3].data0->sqrtInvInertia.column2));
+	Vec4V invInertia30X = V4LoadU(&descs[3].data0->sqrtInvInertia.column0.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia30Y = V4LoadU(&descs[3].data0->sqrtInvInertia.column1.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia30Z = V4LoadU(&descs[3].data0->sqrtInvInertia.column2.x);	// PT: safe because sqrtInvInertia is not the last member of PxSolverBodyData, see compile-time-assert in PxSolverBodyData
 
-	Vec4V invInertia01X = Vec4V_From_Vec3V(V3LoadU(descs[0].data1->sqrtInvInertia.column0));
-	Vec4V invInertia01Y = Vec4V_From_Vec3V(V3LoadU(descs[0].data1->sqrtInvInertia.column1));
-	Vec4V invInertia01Z = Vec4V_From_Vec3V(V3LoadU(descs[0].data1->sqrtInvInertia.column2));
+	Vec4V invInertia01X = V4LoadU(&descs[0].data1->sqrtInvInertia.column0.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia01Y = V4LoadU(&descs[0].data1->sqrtInvInertia.column1.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia01Z = V4LoadU(&descs[0].data1->sqrtInvInertia.column2.x);	// PT: safe because sqrtInvInertia is not the last member of PxSolverBodyData, see compile-time-assert in PxSolverBodyData
 
-	Vec4V invInertia11X = Vec4V_From_Vec3V(V3LoadU(descs[1].data1->sqrtInvInertia.column0));
-	Vec4V invInertia11Y = Vec4V_From_Vec3V(V3LoadU(descs[1].data1->sqrtInvInertia.column1));
-	Vec4V invInertia11Z = Vec4V_From_Vec3V(V3LoadU(descs[1].data1->sqrtInvInertia.column2));
+	Vec4V invInertia11X = V4LoadU(&descs[1].data1->sqrtInvInertia.column0.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia11Y = V4LoadU(&descs[1].data1->sqrtInvInertia.column1.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia11Z = V4LoadU(&descs[1].data1->sqrtInvInertia.column2.x);	// PT: safe because sqrtInvInertia is not the last member of PxSolverBodyData, see compile-time-assert in PxSolverBodyData
 
-	Vec4V invInertia21X = Vec4V_From_Vec3V(V3LoadU(descs[2].data1->sqrtInvInertia.column0));
-	Vec4V invInertia21Y = Vec4V_From_Vec3V(V3LoadU(descs[2].data1->sqrtInvInertia.column1));
-	Vec4V invInertia21Z = Vec4V_From_Vec3V(V3LoadU(descs[2].data1->sqrtInvInertia.column2));
+	Vec4V invInertia21X = V4LoadU(&descs[2].data1->sqrtInvInertia.column0.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia21Y = V4LoadU(&descs[2].data1->sqrtInvInertia.column1.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia21Z = V4LoadU(&descs[2].data1->sqrtInvInertia.column2.x);	// PT: safe because sqrtInvInertia is not the last member of PxSolverBodyData, see compile-time-assert in PxSolverBodyData
 
-	Vec4V invInertia31X = Vec4V_From_Vec3V(V3LoadU(descs[3].data1->sqrtInvInertia.column0));
-	Vec4V invInertia31Y = Vec4V_From_Vec3V(V3LoadU(descs[3].data1->sqrtInvInertia.column1));
-	Vec4V invInertia31Z = Vec4V_From_Vec3V(V3LoadU(descs[3].data1->sqrtInvInertia.column2));
+	Vec4V invInertia31X = V4LoadU(&descs[3].data1->sqrtInvInertia.column0.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia31Y = V4LoadU(&descs[3].data1->sqrtInvInertia.column1.x);	// PT: safe because 'column1' follows 'column0' in PxMat33
+	Vec4V invInertia31Z = V4LoadU(&descs[3].data1->sqrtInvInertia.column2.x);	// PT: safe because sqrtInvInertia is not the last member of PxSolverBodyData, see compile-time-assert in PxSolverBodyData
 
 	Vec4V invInertia0X0, invInertia0X1, invInertia0X2;
 	Vec4V invInertia0Y0, invInertia0Y1, invInertia0Y2;
@@ -194,6 +194,7 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 	PX_TRANSPOSE_44_34(invInertia01Y, invInertia11Y, invInertia21Y, invInertia31Y, invInertia1X1, invInertia1Y1, invInertia1Z1);
 	PX_TRANSPOSE_44_34(invInertia01Z, invInertia11Z, invInertia21Z, invInertia31Z, invInertia1X2, invInertia1Y2, invInertia1Z2);
 
+	const FloatV dt = FLoad(dtF32);
 	const FloatV invDt = FLoad(invDtF32);
 	const FloatV p8 = FLoad(0.8f);
 	//const Vec4V p84 = V4Splat(p8);
@@ -203,39 +204,26 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 
 	const FloatV invDtp8 = FMul(invDt, p8);
 
-	const Vec3V bodyFrame00p = V3LoadU(descs[0].bodyFrame0.p);
-	const Vec3V bodyFrame01p = V3LoadU(descs[1].bodyFrame0.p);
-	const Vec3V bodyFrame02p = V3LoadU(descs[2].bodyFrame0.p);
-	const Vec3V bodyFrame03p = V3LoadU(descs[3].bodyFrame0.p);
-
-	Vec4V bodyFrame00p4 = Vec4V_From_Vec3V(bodyFrame00p);
-	Vec4V bodyFrame01p4 = Vec4V_From_Vec3V(bodyFrame01p);
-	Vec4V bodyFrame02p4 = Vec4V_From_Vec3V(bodyFrame02p);
-	Vec4V bodyFrame03p4 = Vec4V_From_Vec3V(bodyFrame03p);
+	Vec4V bodyFrame00p4 = V4LoadU(&descs[0].bodyFrame0.p.x);	// PT: safe because of compile-time-assert in PxSolverConstraintPrepDescBase
+	Vec4V bodyFrame01p4 = V4LoadU(&descs[1].bodyFrame0.p.x);	// PT: safe because of compile-time-assert in PxSolverConstraintPrepDescBase
+	Vec4V bodyFrame02p4 = V4LoadU(&descs[2].bodyFrame0.p.x);	// PT: safe because of compile-time-assert in PxSolverConstraintPrepDescBase
+	Vec4V bodyFrame03p4 = V4LoadU(&descs[3].bodyFrame0.p.x);	// PT: safe because of compile-time-assert in PxSolverConstraintPrepDescBase
 
 	Vec4V bodyFrame0pX, bodyFrame0pY, bodyFrame0pZ;
 	PX_TRANSPOSE_44_34(bodyFrame00p4, bodyFrame01p4, bodyFrame02p4, bodyFrame03p4, bodyFrame0pX, bodyFrame0pY, bodyFrame0pZ);
 
-	
-	const Vec3V bodyFrame10p = V3LoadU(descs[0].bodyFrame1.p);
-	const Vec3V bodyFrame11p = V3LoadU(descs[1].bodyFrame1.p);
-	const Vec3V bodyFrame12p = V3LoadU(descs[2].bodyFrame1.p);
-	const Vec3V bodyFrame13p = V3LoadU(descs[3].bodyFrame1.p);
-
-	Vec4V bodyFrame10p4 = Vec4V_From_Vec3V(bodyFrame10p);
-	Vec4V bodyFrame11p4 = Vec4V_From_Vec3V(bodyFrame11p);
-	Vec4V bodyFrame12p4 = Vec4V_From_Vec3V(bodyFrame12p);
-	Vec4V bodyFrame13p4 = Vec4V_From_Vec3V(bodyFrame13p);
+	Vec4V bodyFrame10p4 = V4LoadU(&descs[0].bodyFrame1.p.x);	// PT: safe because of compile-time-assert in PxSolverConstraintPrepDescBase
+	Vec4V bodyFrame11p4 = V4LoadU(&descs[1].bodyFrame1.p.x);	// PT: safe because of compile-time-assert in PxSolverConstraintPrepDescBase
+	Vec4V bodyFrame12p4 = V4LoadU(&descs[2].bodyFrame1.p.x);	// PT: safe because of compile-time-assert in PxSolverConstraintPrepDescBase
+	Vec4V bodyFrame13p4 = V4LoadU(&descs[3].bodyFrame1.p.x);	// PT: safe because of compile-time-assert in PxSolverConstraintPrepDescBase
 
 	Vec4V bodyFrame1pX, bodyFrame1pY, bodyFrame1pZ;
 	PX_TRANSPOSE_44_34(bodyFrame10p4, bodyFrame11p4, bodyFrame12p4, bodyFrame13p4, bodyFrame1pX, bodyFrame1pY, bodyFrame1pZ);
 
-	
 	PxPrefetchLine(c.contactID);
 	PxPrefetchLine(c.contactID, 128);
 
 	PxU32 frictionIndex0 = 0, frictionIndex1 = 0, frictionIndex2 = 0, frictionIndex3 = 0;
-
 
 	PxU32 maxPatches = PxMax(descs[0].numFrictionPatches, PxMax(descs[1].numFrictionPatches, PxMax(descs[2].numFrictionPatches, descs[3].numFrictionPatches)));
 	PxU32 maxContacts = numContactPoints4;
@@ -247,35 +235,34 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 
 	for(PxU32 i=0;i<maxPatches;i++)
 	{
-		const bool hasFinished0 = i >= descs[0].numFrictionPatches;
-		const bool hasFinished1 = i >= descs[1].numFrictionPatches;
-		const bool hasFinished2 = i >= descs[2].numFrictionPatches;
-		const bool hasFinished3 = i >= descs[3].numFrictionPatches;
+		bool hasFinished[4];
+		hasFinished[0] = i >= descs[0].numFrictionPatches;
+		hasFinished[1] = i >= descs[1].numFrictionPatches;
+		hasFinished[2] = i >= descs[2].numFrictionPatches;
+		hasFinished[3] = i >= descs[3].numFrictionPatches;
 
+		frictionIndex0 = hasFinished[0] ? frictionIndex0 : descs[0].startFrictionPatchIndex + i;
+		frictionIndex1 = hasFinished[1] ? frictionIndex1 : descs[1].startFrictionPatchIndex + i;
+		frictionIndex2 = hasFinished[2] ? frictionIndex2 : descs[2].startFrictionPatchIndex + i;
+		frictionIndex3 = hasFinished[3] ? frictionIndex3 : descs[3].startFrictionPatchIndex + i;
 
-		frictionIndex0 = hasFinished0 ? frictionIndex0 : descs[0].startFrictionPatchIndex + i;
-		frictionIndex1 = hasFinished1 ? frictionIndex1 : descs[1].startFrictionPatchIndex + i;
-		frictionIndex2 = hasFinished2 ? frictionIndex2 : descs[2].startFrictionPatchIndex + i;
-		frictionIndex3 = hasFinished3 ? frictionIndex3 : descs[3].startFrictionPatchIndex + i;
+		const PxU32 clampedContacts0 = hasFinished[0] ? 0 : c.frictionPatchContactCounts[frictionIndex0];
+		const PxU32 clampedContacts1 = hasFinished[1] ? 0 : c.frictionPatchContactCounts[frictionIndex1];
+		const PxU32 clampedContacts2 = hasFinished[2] ? 0 : c.frictionPatchContactCounts[frictionIndex2];
+		const PxU32 clampedContacts3 = hasFinished[3] ? 0 : c.frictionPatchContactCounts[frictionIndex3];
 
-		PxU32 clampedContacts0 = hasFinished0 ? 0 : c.frictionPatchContactCounts[frictionIndex0];
-		PxU32 clampedContacts1 = hasFinished1 ? 0 : c.frictionPatchContactCounts[frictionIndex1];
-		PxU32 clampedContacts2 = hasFinished2 ? 0 : c.frictionPatchContactCounts[frictionIndex2];
-		PxU32 clampedContacts3 = hasFinished3 ? 0 : c.frictionPatchContactCounts[frictionIndex3];
-
-		PxU32 clampedFric0 = clampedContacts0 * numFrictionPerPoint;
-		PxU32 clampedFric1 = clampedContacts1 * numFrictionPerPoint;
-		PxU32 clampedFric2 = clampedContacts2 * numFrictionPerPoint;
-		PxU32 clampedFric3 = clampedContacts3 * numFrictionPerPoint;
-
+		const PxU32 clampedFric0 = clampedContacts0 * numFrictionPerPoint;
+		const PxU32 clampedFric1 = clampedContacts1 * numFrictionPerPoint;
+		const PxU32 clampedFric2 = clampedContacts2 * numFrictionPerPoint;
+		const PxU32 clampedFric3 = clampedContacts3 * numFrictionPerPoint;
 
 		const PxU32 numContacts = PxMax(clampedContacts0, PxMax(clampedContacts1, PxMax(clampedContacts2, clampedContacts3)));
 		const PxU32 numFrictions = PxMax(clampedFric0, PxMax(clampedFric1, PxMax(clampedFric2, clampedFric3)));
 
-		PxU32 firstPatch0 = c.correlationListHeads[frictionIndex0];
-		PxU32 firstPatch1 = c.correlationListHeads[frictionIndex1];
-		PxU32 firstPatch2 = c.correlationListHeads[frictionIndex2];
-		PxU32 firstPatch3 = c.correlationListHeads[frictionIndex3];
+		const PxU32 firstPatch0 = c.correlationListHeads[frictionIndex0];
+		const PxU32 firstPatch1 = c.correlationListHeads[frictionIndex1];
+		const PxU32 firstPatch2 = c.correlationListHeads[frictionIndex2];
+		const PxU32 firstPatch3 = c.correlationListHeads[frictionIndex3];
 
 		const PxContactPoint* contactBase0 = descs[0].contacts + c.contactPatches[firstPatch0].start;
 		const PxContactPoint* contactBase1 = descs[1].contacts + c.contactPatches[firstPatch1].start;
@@ -284,9 +271,15 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 
 		const Vec4V restitution = V4Merge(FLoad(contactBase0->restitution), FLoad(contactBase1->restitution), FLoad(contactBase2->restitution),
 			FLoad(contactBase3->restitution));
-
+		const Vec4V damping = V4LoadXYZW(contactBase0->damping, contactBase1->damping, contactBase2->damping, contactBase3->damping);
 		const Vec4V staticFriction = V4Merge(FLoad(contactBase0->staticFriction), FLoad(contactBase1->staticFriction), FLoad(contactBase2->staticFriction),
 			FLoad(contactBase3->staticFriction));
+		const bool accelSpring_[] = { !!(contactBase0->materialFlags & PxMaterialFlag::eCOMPLIANT_ACCELERATION_SPRING),
+			                          !!(contactBase1->materialFlags & PxMaterialFlag::eCOMPLIANT_ACCELERATION_SPRING),
+			                          !!(contactBase2->materialFlags & PxMaterialFlag::eCOMPLIANT_ACCELERATION_SPRING),
+			                          !!(contactBase3->materialFlags & PxMaterialFlag::eCOMPLIANT_ACCELERATION_SPRING) };
+		const BoolV accelSpring = BLoad(accelSpring_);
+
 
 		SolverContactCoulombHeader4* PX_RESTRICT header = reinterpret_cast<SolverContactCoulombHeader4*>(ptr);
 
@@ -296,7 +289,6 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 
 		SolverFrictionHeader4* PX_RESTRICT fricHeader = reinterpret_cast<SolverFrictionHeader4*>(ptr2);
 		ptr2 += sizeof(SolverFrictionHeader4) + sizeof(Vec4V) * numContacts;
-
 
 		header->numNormalConstr0 = PxTo8(clampedContacts0);
 		header->numNormalConstr1 = PxTo8(clampedContacts1);
@@ -353,9 +345,8 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 		const Vec4V invMassNorLenSq0 = V4Mul(invMass0_dom0fV, normalLenSq);
 		const Vec4V invMassNorLenSq1 = V4Mul(invMass1_dom1fV, normalLenSq);		
 
-
 		//Calculate friction directions
-		const BoolV cond =V4IsGrtr(orthoThreshold, V4Abs(normalX));
+		const BoolV cond = V4IsGrtr(orthoThreshold, V4Abs(normalX));
 
 		const Vec4V t0FallbackX = V4Sel(cond, zero, V4Neg(normalY));
 		const Vec4V t0FallbackY = V4Sel(cond, V4Neg(normalZ), normalX);
@@ -389,14 +380,13 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 		const Vec4V tFallbackY[2] = {t0Y, t1Y};
 		const Vec4V tFallbackZ[2] = {t0Z, t1Z};
 
-
 		//For all correlation heads - need to pull this out I think
 
 		//OK, we have a counter for all our patches...
-		PxU32 finished = (PxU32(hasFinished0)) | 
-						 ((PxU32(hasFinished1)) << 1) | 
-						 ((PxU32(hasFinished2)) << 2) | 
-						 ((PxU32(hasFinished3)) << 3);
+		PxU32 finished = (PxU32(hasFinished[0])) | 
+						 ((PxU32(hasFinished[1])) << 1) | 
+						 ((PxU32(hasFinished[2])) << 2) | 
+						 ((PxU32(hasFinished[3])) << 3);
 
 		CorrelationListIterator iter0(c, firstPatch0);
 		CorrelationListIterator iter1(c, firstPatch1);
@@ -413,19 +403,21 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 
 		PxU8* p = ptr;
 
-		PxU32 contactCount = 0;
 		PxU32 newFinished = 
-			(PxU32(hasFinished0 || !iter0.hasNextContact()))		| 
-			((PxU32(hasFinished1 || !iter1.hasNextContact())) << 1) | 
-			((PxU32(hasFinished2 || !iter2.hasNextContact())) << 2) | 
-			((PxU32(hasFinished3 || !iter3.hasNextContact())) << 3);
+			(PxU32(hasFinished[0] || !iter0.hasNextContact()))		| 
+			((PxU32(hasFinished[1] || !iter1.hasNextContact())) << 1) | 
+			((PxU32(hasFinished[2] || !iter2.hasNextContact())) << 2) | 
+			((PxU32(hasFinished[3] || !iter3.hasNextContact())) << 3);
+
+		// finished flags are used to be able to handle pairs with varying number
+		// of contact points in the same loop
+		BoolV bFinished = BLoad(hasFinished);
 
 		PxU32 fricIndex = 0;
 
 		while(finished != 0xf)
 		{
 			finished = newFinished;
-			++contactCount;
 			PxPrefetchLine(p, 384);
 			PxPrefetchLine(p, 512);
 			PxPrefetchLine(p, 640);	
@@ -504,7 +496,6 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 					Vec4V unitResponse = V4Add(invMassNorLenSq0, dotDelAngVel0);
 					Vec4V vrel = V4Add(linNorVel0, dotRaXnAngVel0);
 
-
 					//The dynamic-only parts - need to if-statement these up. A branch here shouldn't cost us too much
 					if(isDynamic)
 					{
@@ -525,7 +516,6 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 						const Vec4V delAngVel1Y = V4MulAdd(invInertia1Z1, rbXnZ, v0PlusV1b1);
 						const Vec4V delAngVel1Z = V4MulAdd(invInertia1Z2, rbXnZ, v0PlusV1b2);
 
-
 						//V3Dot(raXn, delAngVel0)
 						
 						const Vec4V dotDelAngVel1 = V4MulAdd(delAngVel1Z, delAngVel1Z, V4MulAdd(delAngVel1Y, delAngVel1Y, V4Mul(delAngVel1X, delAngVel1X)));
@@ -543,25 +533,33 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 						dynamicContact->rbXnX = delAngVel1X;
 						dynamicContact->rbXnY = delAngVel1Y;
 						dynamicContact->rbXnZ = delAngVel1Z;
-
 					}
 
-					const Vec4V velMultiplier = V4Sel(V4IsGrtr(unitResponse, zero), V4Recip(unitResponse), zero);
-
 					const Vec4V penetration = V4Sub(separation, restDistance);
+
+					const BoolV isCompliant = V4IsGrtr(restitution, zero);
+					const Vec4V recipResponse = V4Sel(V4IsGrtr(unitResponse, zero), V4Recip(unitResponse), zero);
+
+					// rdt, a, b, x only needed in compliant case
+					const Vec4V rdt = V4Scale(restitution, dt); // dt*stiffness
+					const Vec4V a = V4Scale(V4Add(damping, rdt), dt); // a = dt * (damping + dt*stiffness)
+					const Vec4V massIfAccelElseOne = V4Sel(accelSpring, recipResponse, one);
+					const Vec4V b = V4Mul(V4Mul(rdt, penetration), massIfAccelElseOne); // b = dt * (stiffness * penetration)
+					const Vec4V x = V4Recip(V4MulAdd(a, V4Sel(accelSpring, one, unitResponse), one));
+
+					const Vec4V velMultiplier = V4Sel(isCompliant, V4Mul(V4Mul(x, a), massIfAccelElseOne), recipResponse);
 
 					const Vec4V penInvDtp8 = V4Max(maxPenBias, V4Scale(penetration, invDtp8));
 
 					Vec4V scaledBias = V4Mul(velMultiplier, penInvDtp8);
 
 					const Vec4V penetrationInvDt = V4Scale(penetration, invDt);
-
 					const BoolV isGreater2 = BAnd(BAnd(V4IsGrtr(restitution, zero), V4IsGrtr(bounceThreshold, vrel)), 
 						V4IsGrtr(V4Neg(vrel), penetrationInvDt));
 
 					const BoolV ccdSeparationCondition = V4IsGrtrOrEq(ccdMaxSeparation, penetration);
 
-					scaledBias = V4Sel(BAnd(ccdSeparationCondition, isGreater2), zero, scaledBias);
+					scaledBias = V4Sel(isCompliant, V4Mul(x,b), V4Sel(BAnd(ccdSeparationCondition, isGreater2), zero, scaledBias));
 
 					const Vec4V sumVRel(vrel);
 
@@ -571,9 +569,9 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 					solverContact->raXnX = delAngVel0X;
 					solverContact->raXnY = delAngVel0Y;
 					solverContact->raXnZ = delAngVel0Z;
-					solverContact->velMultiplier = velMultiplier;
+					solverContact->velMultiplier = V4Sel(bFinished, zero, velMultiplier);
 					solverContact->appliedForce = zero;
-					solverContact->scaledBias = scaledBias;
+					solverContact->scaledBias = V4Sel(bFinished, zero, scaledBias);
 					solverContact->targetVelocity = targetVelocity;
 					solverContact->maxImpulse = maxImpulse;	
 				}
@@ -672,36 +670,45 @@ static bool setupFinalizeSolverConstraintsCoulomb4(PxSolverContactDesc* PX_RESTR
 					friction->normalZ = tZ;
 				}
 			}
+
+			// update the finished flags
 			if(!(finished & 0x1))
 			{
 				iter0.nextContact(patch0, contact0);
 				newFinished |= PxU32(!iter0.hasNextContact());
 			}
+			else
+				bFinished = BSetX(bFinished, bTrue);
 
 			if(!(finished & 0x2))
 			{
 				iter1.nextContact(patch1, contact1);
 				newFinished |= (PxU32(!iter1.hasNextContact()) << 1);
 			}
+			else
+				bFinished = BSetY(bFinished, bTrue);
 
 			if(!(finished & 0x4))
 			{
 				iter2.nextContact(patch2, contact2);
 				newFinished |= (PxU32(!iter2.hasNextContact()) << 2);
 			}
+			else
+				bFinished = BSetZ(bFinished, bTrue);
 
 			if(!(finished & 0x8))
 			{
 				iter3.nextContact(patch3, contact3);
 				newFinished |= (PxU32(!iter3.hasNextContact()) << 3);
 			}
+			else
+				bFinished = BSetW(bFinished, bTrue);
+
 		}
 		ptr = p;
 	}
 	return true;
 }
-
-
 
 //The persistent friction patch correlation/allocation will already have happenned as this is per-pair.
 //This function just computes the size of the combined solve data.
@@ -757,7 +764,6 @@ void computeBlockStreamByteSizesCoulomb4(PxSolverContactDesc* descs,
 
 	_numContactPoints4 = totalContacts;
 
-
 	//OK, we have a given number of friction patches, contact points and friction constraints so we can calculate how much memory we need
 
 	const bool isStatic = (((descs[0].bodyState1 | descs[1].bodyState1 | descs[2].bodyState1 | descs[3].bodyState1) & PxSolverContactDesc::eDYNAMIC_BODY) == 0);
@@ -767,10 +773,9 @@ void computeBlockStreamByteSizesCoulomb4(PxSolverContactDesc* descs,
 	const PxU32 constraintSize = isStatic ? ((sizeof(SolverContact4Base) + sizeof(Vec4V)) * totalContacts) + ( sizeof(SolverFriction4Base) * totalFriction) : 
 		((sizeof(SolverContact4Dynamic) + sizeof(Vec4V)) * totalContacts) + (sizeof(SolverFriction4Dynamic) * totalFriction);
 
-	_solverConstraintByteSize =  ((constraintSize + headerSize + 0x0f) & ~0x0f);
+	_solverConstraintByteSize = ((constraintSize + headerSize + 0x0f) & ~0x0f);
 	PX_ASSERT(0 == (_solverConstraintByteSize & 0x0f));
 }
-
 
 static SolverConstraintPrepState::Enum reserveBlockStreamsCoulomb4(PxSolverContactDesc* descs, ThreadContext& threadContext, const CorrelationBuffer& c,
 						PxU8*& solverConstraint, const PxU32 numFrictionPerContactPoint,
@@ -799,23 +804,8 @@ static SolverConstraintPrepState::Enum reserveBlockStreamsCoulomb4(PxSolverConta
 			return SolverConstraintPrepState::eUNBATCHABLE;
 
 		constraintBlock = constraintAllocator.reserveConstraintData(constraintBlockByteSize + 16u);
-
-		if(0==constraintBlock || (reinterpret_cast<PxU8*>(-1))==constraintBlock)
-		{
-			if(0==constraintBlock)
-			{
-				PX_WARN_ONCE(
-					"Reached limit set by PxSceneDesc::maxNbContactDataBlocks - ran out of buffer space for constraint prep. "
-					"Either accept dropped contacts or increase buffer size allocated for narrow phase by increasing PxSceneDesc::maxNbContactDataBlocks.");
-			}
-			else
-			{
-				PX_WARN_ONCE(
-					"Attempting to allocate more than 16K of contact data for a single contact pair in constraint prep. "
-					"Either accept dropped contacts or simplify collision geometry.");
-				constraintBlock=NULL;
-			}
-		}
+		if(!checkConstraintDataPtr<false>(constraintBlock))
+			constraintBlock = NULL;
 	}
 
 	//Patch up the individual ptrs to the buffer returned by the constraint block reservation (assuming the reservation didn't fail).
@@ -861,7 +851,6 @@ SolverConstraintPrepState::Enum createFinalizeSolverContacts4Coulomb2D(
 	return createFinalizeSolverContacts4Coulomb(outputs, threadContext, blockDescs, invDtF32, dtF32, bounceThresholdF32,
 		frictionOffsetThreshold, correlationDistance, constraintAllocator, PxFrictionType::eTWO_DIRECTIONAL);
 }
-
 
 SolverConstraintPrepState::Enum createFinalizeSolverContacts4Coulomb(
 								PxsContactManagerOutput** outputs,
@@ -951,7 +940,6 @@ SolverConstraintPrepState::Enum createFinalizeSolverContacts4Coulomb(
 		invMassScale1[a] *= blockDesc.invMassScales.linear1;
 		invInertiaScale0[a] *= blockDesc.invMassScales.angular0;
 		invInertiaScale1[a] *= blockDesc.invMassScales.angular1;
-
 	}
 
 	//OK, now we need to work out how much memory to allocate, allocate it and then block-create the constraints...
@@ -984,6 +972,7 @@ SolverConstraintPrepState::Enum createFinalizeSolverContacts4Coulomb(
 
 		void* writeBack = outputs[a]->contactForces;
 		desc.writeBack = writeBack;
+		desc.writeBackFriction = NULL;
 	}
 
 	const Vec4V iMassScale0 = V4LoadA(invMassScale0); 
@@ -991,14 +980,12 @@ SolverConstraintPrepState::Enum createFinalizeSolverContacts4Coulomb(
 	const Vec4V iMassScale1 = V4LoadA(invMassScale1); 
 	const Vec4V iInertiaScale1 = V4LoadA(invInertiaScale1);
 
-
-	bool hasFriction = setupFinalizeSolverConstraintsCoulomb4(blockDescs, solverConstraint, 
+	bool hasFriction = setupFinalizeSolverConstraintsCoulomb4(blockDescs, solverConstraint, dtF32,
 											invDtF32, bounceThresholdF32, c, numFrictionPerPoint, numContactPoints4, solverConstraintByteSize,
 											iMassScale0, iInertiaScale0, iMassScale1, iInertiaScale1);
 
 	*(reinterpret_cast<PxU32*>(solverConstraint + solverConstraintByteSize)) = 0;
 	*(reinterpret_cast<PxU32*>(solverConstraint + solverConstraintByteSize + 4)) = hasFriction ? 0xFFFFFFFF : 0;
-
 
 	return SolverConstraintPrepState::eSUCCESS;
 }

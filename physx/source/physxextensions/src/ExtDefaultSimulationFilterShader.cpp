@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -30,6 +30,7 @@
 #include "extensions/PxDefaultSimulationFilterShader.h"
 #include "PxRigidActor.h"
 #include "PxShape.h"
+#include "PxSoftBody.h"
 
 #include "foundation/PxIntrinsics.h"
 #include "foundation/PxAllocator.h"
@@ -200,6 +201,22 @@ namespace
 				}
 			}
 			break;
+			case PxActorType::eSOFTBODY:
+			{
+				PxSoftBody& sActor = static_cast<PxSoftBody&>(actor);
+
+				PxShape* shape = sActor.getShape();
+
+				// retrieve current group mask
+				PxFilterData resultFd = shape->getSimulationFilterData();
+
+				adjustFilterData(TGroupsMask, fd, resultFd);
+
+				// set new filter data
+				shape->setSimulationFilterData(resultFd);				
+			}
+			break;
+			break;			
 			default:
 			break;
 		}

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -67,8 +67,16 @@ PxRigidDynamic* PxCreateDynamic(PxPhysics& sdk,
 	PxRigidDynamic* actor = sdk.createRigidDynamic(transform);
 	if(actor)
 	{
-		actor->attachShape(shape);
-		PxRigidBodyExt::updateMassAndInertia(*actor, density);
+		if(!actor->attachShape(shape))
+		{
+			actor->release();
+			return NULL;
+		}
+		if(!PxRigidBodyExt::updateMassAndInertia(*actor, density))
+		{
+			actor->release();
+			return NULL;
+		}
 	}
 	return actor;
 }
@@ -104,7 +112,7 @@ PxRigidDynamic* PxCreateKinematic(PxPhysics& sdk,
 {
 	PX_CHECK_AND_RETURN_NULL(transform.isValid(), "PxCreateKinematic: transform is not valid.");
 
-	bool isDynGeom = isDynamicGeometry(shape.getGeometryType());
+	bool isDynGeom = isDynamicGeometry(shape.getGeometry().getType());
 	if(isDynGeom && density <= 0.0f)
 	    return NULL;
 

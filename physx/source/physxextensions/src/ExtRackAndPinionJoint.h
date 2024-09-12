@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -61,6 +61,7 @@ namespace Ext
 										RackAndPinionJoint(const PxTolerancesScale& /*scale*/, PxRigidActor* actor0, const PxTransform& localFrame0, PxRigidActor* actor1, const PxTransform& localFrame1);
 		// PxRackAndPinionJoint
 		virtual	bool					setJoints(const PxBase* hinge, const PxBase* prismatic)	PX_OVERRIDE;
+		virtual	void					getJoints(const PxBase*& hinge, const PxBase*& prismatic)	const	PX_OVERRIDE;
 		virtual	void					setRatio(float ratio)	PX_OVERRIDE;
 		virtual	float					getRatio()	const	PX_OVERRIDE;
 		virtual	bool					setData(PxU32 nbRackTeeth, PxU32 nbPinionTeeth, float rackLength)	PX_OVERRIDE;

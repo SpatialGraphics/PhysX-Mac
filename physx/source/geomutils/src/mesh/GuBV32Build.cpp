@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2024 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -498,7 +498,28 @@ static bool BuildBV32Internal(BV32Tree& bv32Tree, const BV4_AABBTree& Source, So
 	
 	{
 		GU_PROFILE_ZONE("....calculateLeafNode")
-		bv32Tree.calculateLeafNode(bv32Tree.mNodes[0]);
+
+		BV32Data* nodes = bv32Tree.mNodes;
+
+		for(PxU32 i=0; i<nbNodes; i++)
+		{
+			BV32Data& node = nodes[i];
+			if(!node.isLeaf())
+			{
+				PxU32 nbChildren = node.getNbChildren();
+				PxU32 offset = node.getChildOffset();
+				//calculate how many children nodes are leaf nodes
+				PxU32 nbLeafNodes = 0;
+				while(nbChildren--)
+				{
+					BV32Data& child = nodes[offset++];
+					if(child.isLeaf())
+						nbLeafNodes++;
+				}
+
+				node.mNbLeafNodes = nbLeafNodes;
+			}
+		}
 	}
 	
 	bv32Tree.mPackedNodes = PX_ALLOCATE(BV32DataPacked, nbNodes, "BV32DataPacked");
