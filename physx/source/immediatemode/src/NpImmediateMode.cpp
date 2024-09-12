@@ -973,6 +973,9 @@ PxU32 immArticulation::addLink(const PxU32 parentIndex, const PxArticulationLink
 	return index;
 }
 
+extern template void FeatherstoneArticulation::jcalc<false>(ArticulationData& data);
+extern template void FeatherstoneArticulation::jcalc<true>(ArticulationData& data);
+
 void immArticulation::complete()
 {
 	// Based on Sc::ArticulationSim::checkResize()

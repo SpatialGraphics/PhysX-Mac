@@ -291,6 +291,10 @@ void Sc::ArticulationSim::createLLStructure()
 	mIsLLArticulationInitialized = true;
 }
 
+// AD: needed because we define the templated function in a CPP.
+extern template void FeatherstoneArticulation::jcalc<false>(ArticulationData& data);
+extern template void FeatherstoneArticulation::jcalc<true>(ArticulationData& data);
+
 void Sc::ArticulationSim::initializeConfiguration()
 {
 	Dy::ArticulationData& data = mLLArticulation->getArticulationData();

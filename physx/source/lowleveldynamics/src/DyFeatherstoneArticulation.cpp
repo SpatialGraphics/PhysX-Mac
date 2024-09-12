@@ -2091,7 +2091,12 @@ namespace Dy
 		const PxReal biasCoefficient,
 		PxConstraintAllocator& constraintAllocator);
 
-	void FeatherstoneArticulation::prepareStaticConstraintsTGS(const PxReal stepDt, const PxReal totalDt, const PxReal invStepDt, const PxReal invTotalDt, 
+extern template
+void updateFrictionAnchorCountAndPosition<PxSolverContactDesc>(PxSolverConstraintDesc& desc, PxsContactManagerOutput& output, PxSolverContactDesc& blockDesc);
+extern template
+void updateFrictionAnchorCountAndPosition<PxTGSSolverContactDesc>(PxSolverConstraintDesc& desc, PxsContactManagerOutput& output, PxTGSSolverContactDesc& blockDesc);
+
+	void FeatherstoneArticulation::prepareStaticConstraintsTGS(const PxReal stepDt, const PxReal totalDt, const PxReal invStepDt, const PxReal invTotalDt,
 		PxsContactManagerOutputIterator& outputs, Dy::ThreadContext& threadContext, PxReal correlationDist, PxReal bounceThreshold, PxReal frictionOffsetThreshold,
 		PxTGSSolverBodyData* solverBodyData, PxTGSSolverBodyTxInertia* txInertia, PxsConstraintBlockManager& blockManager,
 		Dy::ConstraintWriteback* constraintWritebackPool, const PxReal biasCoefficient, const PxReal lengthScale)

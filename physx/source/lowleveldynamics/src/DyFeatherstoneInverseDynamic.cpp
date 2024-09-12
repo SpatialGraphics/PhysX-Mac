@@ -48,6 +48,9 @@ namespace physx
 
 namespace Dy
 {
+    extern template void FeatherstoneArticulation::jcalc<false>(ArticulationData& data);
+    extern template void FeatherstoneArticulation::jcalc<true>(ArticulationData& data);
+
 	void PxcFsFlushVelocity(FeatherstoneArticulation& articulation, Cm::SpatialVectorF* deltaV);
 
 	void FeatherstoneArticulation::computeLinkAccelerationInv(ArticulationData& data, ScratchData& scratchData)

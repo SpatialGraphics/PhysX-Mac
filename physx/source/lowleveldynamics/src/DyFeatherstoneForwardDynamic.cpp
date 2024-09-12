@@ -1435,7 +1435,8 @@ namespace Dy
 	//		}
 	//	}
 	//}
-
+extern template void FeatherstoneArticulation::jcalc<false>(ArticulationData& data);
+extern template void FeatherstoneArticulation::jcalc<true>(ArticulationData& data);
 	// TODO AD: the following two functions could be just one.
 	PxU32 FeatherstoneArticulation::computeUnconstrainedVelocities(
 		const ArticulationSolverDesc& desc,

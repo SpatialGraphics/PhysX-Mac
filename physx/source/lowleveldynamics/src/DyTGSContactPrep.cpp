@@ -1865,6 +1865,11 @@ namespace Dy
 			error.accumulateErrorGlobal(*cache.contactErrorAccumulator);
 	}
 
+extern template
+void writeBackContactFriction<SolverContactFrictionStep>(const SolverContactFrictionStep* PX_RESTRICT frictions, PxU32 numFrictionConstr, PxU32 frictionStride, PxVec3* PX_RESTRICT vFrictionWriteback);
+extern template
+void writeBackContactFriction<SolverContactFriction>(const SolverContactFriction* PX_RESTRICT frictions, PxU32 numFrictionConstr, PxU32 frictionStride, PxVec3* PX_RESTRICT vFrictionWriteback);
+
 	void writeBackContact(const PxSolverConstraintDesc& desc, SolverContext* /*cache*/)
 	{
 		// PxReal normalForce = 0;

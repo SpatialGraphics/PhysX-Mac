@@ -2529,6 +2529,11 @@ void DynamicsContext::integrateCoreParallel(SolverIslandParams& params, Cm::Spat
 	physx::PxAtomicAdd(&params.numObjectsIntegrated, numIntegrated);
 }
 
+extern template
+void updateFrictionAnchorCountAndPosition<PxSolverContactDesc>(PxSolverConstraintDesc& desc, PxsContactManagerOutput& output, PxSolverContactDesc& blockDesc);
+extern template
+void updateFrictionAnchorCountAndPosition<PxTGSSolverContactDesc>(PxSolverConstraintDesc& desc, PxsContactManagerOutput& output, PxTGSSolverContactDesc& blockDesc);
+
 static PxU32 createFinalizeContacts_Parallel(PxSolverBodyData* solverBodyData, ThreadContext& mThreadContext, DynamicsContext& context,
 									  PxU32 startIndex, PxU32 endIndex, PxsContactManagerOutputIterator& outputs)
 {

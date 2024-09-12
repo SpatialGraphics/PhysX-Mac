@@ -1103,6 +1103,11 @@ void DynamicsTGSContext::preIntegrateBodies(PxsBodyCore** bodyArray, PxsRigidBod
 	velIters = localMaxVelIter;
 }
 
+extern template
+void updateFrictionAnchorCountAndPosition<PxSolverContactDesc>(PxSolverConstraintDesc& desc, PxsContactManagerOutput& output, PxSolverContactDesc& blockDesc);
+extern template
+void updateFrictionAnchorCountAndPosition<PxTGSSolverContactDesc>(PxSolverConstraintDesc& desc, PxsContactManagerOutput& output, PxTGSSolverContactDesc& blockDesc);
+
 void DynamicsTGSContext::createSolverConstraints(PxSolverConstraintDesc* contactDescPtr, PxConstraintBatchHeader* headers, PxU32 nbHeaders,
 	PxsContactManagerOutputIterator& outputs, Dy::ThreadContext& islandThreadContext, Dy::ThreadContext& threadContext, PxReal stepDt, PxReal totalDt, PxReal invStepDt,
 	const PxReal biasCoefficient, PxI32 velIters)

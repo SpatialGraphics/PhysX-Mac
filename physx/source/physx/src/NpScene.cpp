@@ -3084,6 +3084,7 @@ bool NpScene::checkSceneStateAndCudaErrors(bool isCollide /*= false*/)
 
 bool NpScene::checkGpuErrorsPreSim(bool isCollide /* = false */)
 {
+    (void)isCollide;
 #if PX_SUPPORT_GPU_PHYSX
 	if (mScene.isUsingGpuDynamicsOrBp())
 	{

@@ -283,8 +283,6 @@ SET(PHYSX_EXTENSIONS_SERIALIZATION_XML_SOURCE
 	${LL_SOURCE_DIR}/serialization/Xml/SnXmlVisitorReader.h
 	${LL_SOURCE_DIR}/serialization/Xml/SnXmlVisitorWriter.h
 	${LL_SOURCE_DIR}/serialization/Xml/SnXmlWriter.h
-	${LL_SOURCE_DIR}/serialization/Xml/PsFastXml.h
-	${LL_SOURCE_DIR}/serialization/Xml/PsFastXml.cpp
 )
 SOURCE_GROUP(serialization\\xml FILES ${PHYSX_EXTENSIONS_SERIALIZATION_XML_SOURCE})
 
