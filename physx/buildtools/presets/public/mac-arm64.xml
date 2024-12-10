@@ -2,7 +2,7 @@
 <preset name="mac-arm64" comment="Mac-arm64 Xcode PhysX general settings">
   <platform targetPlatform="macArm64" compiler="xcode" />
   <CMakeSwitches>
-    <cmakeSwitch name="PX_GENERATE_STATIC_LIBRARIES" value="True" comment="Generate static libraries" />
+    <cmakeSwitch name="PX_GENERATE_STATIC_LIBRARIES" value="False" comment="Generate static libraries" />
     <cmakeSwitch name="NV_FORCE_64BIT_SUFFIX" value="True" comment="Force a 64 bit suffix for platforms that don't register properly." />
   </CMakeSwitches>
   <CMakeParams>
